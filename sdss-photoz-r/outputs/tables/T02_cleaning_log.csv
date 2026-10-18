@@ -1,0 +1,10 @@
+step,rule,rows_before,rows_after,rows_removed,reason,details
+1,Read raw CSV with explicit column types; clean_names(),120,120,0,Type safety (objid as text); consistent names,
+2,"Inspect structure, summary, NA, sentinels, duplicates",120,120,0,Inspection evidence (outputs/logs/02_inspection.txt),NA cells: 0; sentinel cells: 0
+3,Remove duplicate objid,120,120,0,One row per galaxy,
+4,Remove rows with NA or sentinel (±9999) values,120,120,0,SDSS uses -9999 for missing photometry,
+5,"Magnitudes in [10, 30]; 0 < redshift < 1",120,120,0,Removes physically impossible values,
+6,Remove colour outliers beyond median ± 5·MAD (any colour),120,118,2,Blended or bad photometry; MAD is robust to skew,1237665548892962975 (z = 0.031); 1237657769630695800 (z = 0.05)
+7,"Derive colours u_g, g_r, r_i, i_z",118,118,0,"Features (D-006): colours trace spectral shape, independent of brightness",
+8,Random sample to 100 rows,118,100,18,Brief: 30–100 observations (D-003),slice_sample(n = 100) with SEED = 42
+9,"Assert 30 ≤ n ≤ 100, no NA, unique objid; write sdss_clean.csv",100,100,0,Hard constraint C1,data/processed/sdss_clean.csv

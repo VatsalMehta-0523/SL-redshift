@@ -514,6 +514,10 @@ LaTeX. Draft captions are in `outputs/figures/captions.md`.
   outside this range.
 - **Mixed galaxy types:** red ellipticals have a strong 4000 Å break; blue
   star-forming galaxies have a weaker one. This causes scatter.
+- **Very blue galaxies are excluded.** The 5·MAD colour cut removed two
+  galaxies that are blue in every colour (likely real star-forming galaxies),
+  so the models were never trained or tested on such objects (T02,
+  `docs/AI_USAGE.md` AI-004).
 - **Magnitude errors are not used** as weights or inputs.
 - **Spectroscopic selection bias:** galaxies chosen for SDSS spectra are
   brighter than typical photometric-only galaxies.

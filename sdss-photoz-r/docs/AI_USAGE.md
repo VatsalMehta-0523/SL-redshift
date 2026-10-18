@@ -21,10 +21,10 @@
 | ID | Date | Stage | Tool | What the AI did | Owner decision | Code / output |
 |---|---|---|---|---|---|---|
 | AI-001 | 2026-10-18 | Planning | Claude (claude.ai) | Proposed project, features, models, metrics, query cuts; drafted project docs | Accepted (D-001–D-016) | This doc pack |
-| AI-002 | 2026-10-18 | Acquisition (code) | Claude Code (Claude Opus 5.5) | Tested the SkyServer web API, wrote the setup, utility and download scripts | Pending owner review | `R/00_setup.R`, `R/utils_*.R`, `R/01_acquire.R` |
-| AI-003 | | Inspection | | | | `R/02_inspect_clean.R` |
-| AI-004 | | Cleaning | | | | `T02_cleaning_log.csv` |
-| AI-005 | | Preprocessing | | | | `R/02_inspect_clean.R` |
+| AI-002 | 2026-10-18 | Acquisition (code) | Claude Code (Claude Opus 5.5) | Tested the SkyServer web API, wrote the setup, utility and download scripts | Accepted | `R/00_setup.R`, `R/utils_*.R`, `R/01_acquire.R` |
+| AI-003 | 2026-10-18 | Inspection | Claude Code (Claude Opus 5.5) | Checked structure, NA, sentinels, duplicates, ranges, errors, colour outliers; flagged 2 very blue galaxies | Noted | `outputs/logs/02_inspection.txt` |
+| AI-004 | 2026-10-18 | Cleaning | Claude Code (Claude Opus 5.5) | Implemented rules 1–9; suggested flag-only for the 2 blue galaxies | Rejected the suggestion: removed them as planned | `R/02_inspect_clean.R`, `T02_cleaning_log.csv` |
+| AI-005 | 2026-10-18 | Preprocessing | Claude Code (Claude Opus 5.5) | Derived colours, seeded sample to 100, column order | Accepted (scaling deferred to caret, D-010) | `R/02_inspect_clean.R` |
 
 ---
 
@@ -86,24 +86,84 @@
   - Added a `.here` file. The git repository root is the parent folder
     (`Kavya-jini/`), so without it `here::here()` would resolve paths
     there instead of inside `sdss-photoz-r/`.
-- **Owner decision:** _pending review_
+- **Owner decision:** Accepted. The owner reviewed the scripts and committed
+  them.
 - **Resulting code:** files above
 - **Effect on data:** `R/01_acquire.R` downloaded 120 rows × 15 columns from
   DR18 on 2026-10-18 (see `data/raw/ACQUISITION.md` for the MD5). A second run
   skipped the download and confirmed the MD5.
 - **Linked decision:** D-003, D-004, D-005, D-015
 
-<!--
-EXPECTED NEXT ENTRIES (the coding agent fills these with REAL observations):
+### AI-003 — Inspection of the raw data
+- **Date:** 2026-10-18
+- **Stage:** Inspection
+- **Tool / model:** Claude Code (Claude Opus 5.5)
+- **Input given to AI:** output of `str()`, `summary()`, NA, sentinel and
+  duplicate counts, colour summaries and MAD outlier counts for
+  `data/raw/sdss_raw.csv`. The full output is saved in
+  `outputs/logs/02_inspection.txt`.
+- **Prompt (short):** "Inspect the raw data and flag anything the cleaning
+  rules must handle."
+- **AI output / suggestion:**
+  - 120 rows × 15 columns. No NA, no sentinel values (±9999), no duplicate
+    `objid`, no fully duplicated rows, and no repeated sky positions.
+  - All `objid` values have 19 digits and are intact as text.
+  - All magnitudes lie well inside [10, 30] and redshift inside (0, 1). All
+    magnitude errors are below the query's 0.2 cut.
+  - The redshift range (about 0.025–0.22) is narrower than D-005 expected.
+    At these redshifts the 4000 Å break stays inside the g band, which matters
+    for the physics discussion.
+  - With the 5·MAD rule, 2 galaxies are flagged, both on `i_z`:
+    `1237665548892962975` (z = 0.031) and `1237657769630695800` (z = 0.050).
+    Both are blue in **all four** colours, not just one. The first has
+    typical photometric errors; the second has errors about 2–4× the sample
+    median but well under the 0.2 cut. The AI judged them to be real blue
+    star-forming galaxies rather than bad photometry, since bad photometry
+    usually shifts a single colour.
+- **Owner decision:** Noted. See AI-004 for how the outliers were handled.
+- **Resulting code:** inspection block (step 2) of `R/02_inspect_clean.R`
+- **Effect on data:** none (inspection only)
+- **Linked decision:** D-012
 
-AI-003 Inspection — agent runs str(), summary(), NA/duplicate counts,
-  magnitude/redshift ranges on data/raw/sdss_raw.csv and reports anomalies
-  (e.g. sentinel -9999 values, objid precision, colour outliers).
+### AI-004 — Cleaning rules
+- **Date:** 2026-10-18
+- **Stage:** Cleaning
+- **Tool / model:** Claude Code (Claude Opus 5.5)
+- **Input given to AI:** the AI-003 findings and the rules in README §6.
+- **Prompt (short):** "Implement the cleaning pipeline; ask before changing
+  any planned rule."
+- **AI output / suggestion:** implemented rules 1–9 from README §6, with one
+  row per rule in T02 (including rules that remove nothing). For rule 6 it
+  suggested **flagging the two blue galaxies without removing them**: they look
+  physically real, and removing them leaves the model with almost no blue
+  galaxies to learn from.
+- **Owner decision:** **Rejected the flag-only suggestion.** Rule 6 was
+  applied as planned and both galaxies were removed. Every other rule was
+  accepted as written.
+- **Resulting code:** `R/02_inspect_clean.R`, steps 3–6
+- **Effect on data (from T02):** 120 → 120 (rules 3–5 removed nothing) →
+  118 (rule 6 removed 2)
+- **Linked decision:** D-012
+- **Note for the report:** after this cut the sample has no very blue
+  galaxies, so the models are not tested on them. Mention this in
+  Limitations.
 
-AI-004 Cleaning — agent proposes rules (duplicates, NA/sentinels,
-  physical ranges, 5·MAD colour outliers); owner accepts/rejects each;
-  row counts copied from T02_cleaning_log.csv.
-
-AI-005 Preprocessing — colour derivation, sampling to 100 with SEED,
-  centring/scaling inside caret (fitted on training folds only).
--->
+### AI-005 — Preprocessing
+- **Date:** 2026-10-18
+- **Stage:** Preprocessing
+- **Tool / model:** Claude Code (Claude Opus 5.5)
+- **Input given to AI:** the cleaned 118 rows (no data values beyond what
+  AI-003 lists).
+- **Prompt (short):** "Derive features and produce the 100-row analysis set."
+- **AI output / suggestion:** derive the colours `u_g, g_r, r_i, i_z`; sample
+  exactly 100 rows with `set.seed(42)`; sort by `objid` and fix the column
+  order; assert 30 ≤ n ≤ 100, no NA and unique `objid`. Centring and scaling
+  are **not** done here. They run inside `caret::train()` on each training
+  fold, so the test set cannot leak into them.
+- **Owner decision:** Accepted
+- **Resulting code:** `R/02_inspect_clean.R`, steps 7–9
+- **Effect on data (from T02):** 118 → 100 rows (random sample); 4 colour
+  columns added (19 columns in total). Verified: colours equal magnitude
+  differences, values match the raw file, and a re-run gives a
+  byte-identical `sdss_clean.csv`.
+- **Linked decision:** D-003, D-006, D-010, D-014
