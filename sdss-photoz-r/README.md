@@ -143,40 +143,85 @@ r adds distance information that colours alone lack.
 
 | Software | Version | Notes |
 |---|---|---|
-| R | ≥ 4.3 | <https://cran.r-project.org> |
-| RStudio (optional) | recent | Convenient IDE |
-| Pandoc | bundled with RStudio | Needed for the report |
+| R | ≥ 4.3 (developed on 4.6.1) | <https://cran.r-project.org>, or `winget install --id RProject.R` |
+| VS Code + R extension | recent | Editor. RStudio is **not** needed |
+| Pandoc | ≥ 2.0 | Needed only to render the report (`pandoc --version` to check); `winget install --id JohnMacFarlane.Pandoc` |
 | LaTeX (optional) | TinyTeX | Only for PDF reports: `tinytex::install_tinytex()` |
 
-**R packages** (locked in `renv.lock`):
+Add R's `bin` folder (e.g. `C:\Program Files\R\R-4.6.1\bin`) to your PATH so
+that `Rscript` works in any terminal. Check it with `Rscript --version`.
+
+**R packages** are managed by **renv** and locked in `renv.lock`:
 
 | Purpose | Packages |
 |---|---|
-| Data handling | `tidyverse` (readr, dplyr, tidyr, ggplot2, purrr), `janitor`, `here`, `glue` |
+| Data handling | `readr`, `dplyr`, `tidyr`, `purrr`, `tibble`, `janitor`, `here`, `glue` |
+| Data download | `httr2` |
 | Modelling | `caret`, `randomForest`, `kernlab` (SVR), `FNN`, `xgboost` (optional) |
 | Evaluation | `boot` |
 | Plotting | `ggplot2`, `patchwork`, `ggcorrplot`, `viridisLite` |
 | Interpretation | `pdp`, `vip` |
 | Reporting | `rmarkdown`, `knitr` |
-| Testing / env | `testthat`, `renv`, `styler`, `lintr` |
-| Optional download | `httr2` |
+| Testing / tooling | `testthat`, `renv`, `styler`, `lintr`, `languageserver` (VS Code) |
 
-**Install:**
+`renv.lock` grows phase by phase: a phase that needs a new package runs
+`renv::install()` and then `renv::snapshot()`.
 
-```r
-install.packages("renv")
-renv::restore()          # installs the exact versions from renv.lock
+### 4.1 Install the packages
+
+Run this once, from inside the `sdss-photoz-r/` folder:
+
+```bash
+Rscript -e "renv::restore(prompt = FALSE)"
 ```
 
-The first time, before `renv.lock` exists, the agent runs `renv::init()`
-and installs the packages above.
+You don't need to install renv first. `.Rprofile` runs `renv/activate.R`,
+which installs renv itself if it's missing and then restores the exact
+package versions from `renv.lock` into the project library `renv/library/`.
+
+### 4.2 renv activates automatically
+
+There is **no activate step** (unlike a Python virtualenv). Whenever R starts
+with `sdss-photoz-r/` as its working directory, `.Rprofile` switches on the
+project library. So:
+
+- Always open **the `sdss-photoz-r/` folder** in VS Code (*File → Open
+  Folder*), not its parent folder.
+- Run scripts from that folder: `Rscript R/01_acquire.R`.
+- Check the setup with `Rscript -e "renv::status()"`. It should report a
+  consistent state.
+
+### 4.3 VS Code setup
+
+1. Install the R extension: `code --install-extension REditorSupport.r`.
+2. `languageserver` (autocomplete, linting) is already in `renv.lock`, so step
+   4.1 installs it.
+3. Open a script and press **Ctrl+Enter** to send the current line or
+   selection to an R terminal. You can also run whole scripts with `Rscript`
+   in the integrated terminal.
+
+**PowerShell quoting:** Windows PowerShell 5.1 drops double quotes nested
+inside single quotes when it calls `Rscript`. Always put the R code in
+**double quotes, with single quotes inside**, as every command in this
+repository does:
+
+```bash
+Rscript -e "testthat::test_dir('tests/testthat')"
+```
+
+This form works in PowerShell, cmd and bash.
 
 ---
 
 ## 5. Getting the data (SDSS SkyServer)
 
-> Coding-agent sandboxes usually **cannot** reach SkyServer. Do this step
-> yourself; it takes about 2 minutes.
+**Option A (automatic):** run `Rscript R/01_acquire.R` from the
+`sdss-photoz-r/` folder. It sends the query below to the SkyServer SqlSearch
+web service (DR18, falling back to DR17), saves `data/raw/sdss_raw.csv`, and
+writes `ACQUISITION.md`. It never downloads again once the file exists.
+
+**Option B (manual):** use this if the script can't reach SkyServer. It takes
+about 2 minutes.
 
 1. Open **<https://skyserver.sdss.org/dr18/SearchTools/sql>**
    (if DR18 is unavailable, use `/dr17/`).
@@ -303,9 +348,16 @@ sdss-photoz-r/
 │   ├── models/             ← fitted models (.rds)
 │   └── logs/               ← run_log.txt, sessionInfo.txt
 ├── tests/testthat/         ← test-metrics.R, test-data.R, test-leakage.R
-├── renv.lock
+├── renv.lock               ← exact package versions (renv)
+├── renv/                   ← activate.R + settings (library/ is git-ignored)
+├── .Rprofile               ← auto-activates renv when R starts here
+├── .here                   ← marks this folder as the root for here::here()
+├── .gitattributes          ← keeps data/raw byte-exact (no CRLF conversion)
 └── .gitignore
 ```
+
+The git repository root is the folder above `sdss-photoz-r/`. The `.here`
+file makes `here::here()` resolve paths inside `sdss-photoz-r/` anyway.
 
 ---
 
@@ -374,23 +426,28 @@ steps of 5%.
 
 ## 11. How to run
 
-```bash
-# 0. One-time setup
-Rscript -e 'install.packages("renv"); renv::restore()'
+All commands run from the `sdss-photoz-r/` folder, in PowerShell, cmd or bash.
 
-# 1. Put the SDSS CSV at data/raw/sdss_raw.csv (see §5)
+```bash
+# 0. One-time setup (§4.1)
+Rscript -e "renv::restore(prompt = FALSE)"
+
+# 1. Get the data: data/raw/sdss_raw.csv is already committed; if it is
+#    missing, 01_acquire.R downloads it (§5)
 
 # 2. Run the full pipeline (steps 1–7)
 Rscript run_all.R
 
 # 3. Run the tests
-Rscript -e 'testthat::test_dir("tests/testthat")'
+Rscript -e "testthat::test_dir('tests/testthat')"
 
 # 4. Build the report (HTML + Word)
-Rscript -e 'rmarkdown::render("report/report.Rmd", output_format = "all")'
+Rscript -e "rmarkdown::render('report/report.Rmd', output_format = 'all')"
 ```
 
-Or run each script from RStudio in order: `R/01_acquire.R` … `R/07_interpret.R`.
+You can also run the scripts one at a time, in order, with `Rscript R/01_acquire.R`
+… `Rscript R/07_interpret.R`, or open one in VS Code and send it to the R
+terminal (§4.3).
 
 | Script | Approx. runtime |
 |---|---|
@@ -520,7 +577,11 @@ so we remove it.
 | DR18 page errors | Use `https://skyserver.sdss.org/dr17/SearchTools/sql` and record DR17 in ACQUISITION.md |
 | Fewer than 100 rows after cleaning | Acceptable if ≥ 30 (record in DECISIONS); otherwise download again with `TOP 150` via a new decision |
 | `svmRadial` very slow | Normal for 25 resamples × 45 grid points; still < 2 min |
-| Report fails to render | Install pandoc (comes with RStudio); for PDF install TinyTeX |
+| Report fails to render | Check `pandoc --version` (≥ 2.0); install with `winget install --id JohnMacFarlane.Pandoc`. For PDF install TinyTeX |
+| `Unexpected token '-e'` in PowerShell | Put `&` before a quoted path: `& "C:\Program Files\R\R-4.6.1\bin\Rscript.exe" ...`, or add R to PATH (§4) |
+| `object 'x' not found` from `Rscript -e '...("x")'` | PowerShell dropped the inner quotes. Use `Rscript -e "...('x')"` (§4.3) |
+| `there is no package called …` | Run R from inside `sdss-photoz-r/` so renv activates, then `Rscript -e "renv::restore(prompt = FALSE)"` |
+| `01_acquire.R` stops: MD5 has changed | The raw CSV was edited or its line endings were converted. Restore it with `git checkout -- data/raw/sdss_raw.csv` |
 | A model is worse than baseline | Report it honestly. Never tune on the test set |
 
 ---

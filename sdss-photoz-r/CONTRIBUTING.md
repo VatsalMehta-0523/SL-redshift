@@ -10,10 +10,10 @@ or AI coding agents. Agents should also follow [AGENTS.md](AGENTS.md).
 
 1. Read `TASK.md` (what) and `AGENTS.md` (how).
 2. Check `DECISIONS.md`. Don't redo a decision that has already been made.
-3. Restore the environment:
-   ```r
-   install.packages("renv")   # once
-   renv::restore()
+3. Open the `sdss-photoz-r/` folder (renv activates automatically) and
+   restore the packages (README §4):
+   ```bash
+   Rscript -e "renv::restore(prompt = FALSE)"
    ```
 4. Make sure `data/raw/sdss_raw.csv` exists (see README §5).
 
@@ -120,15 +120,15 @@ analysis dataset must stay within 30–100 rows (TASK.md C1).
 ## 6. Checks before every commit
 
 ```bash
-Rscript -e 'styler::style_dir("R")'
-Rscript -e 'lintr::lint_dir("R")'
+Rscript -e "styler::style_dir('R')"
+Rscript -e "lintr::lint_dir('R')"
 Rscript run_all.R
-Rscript -e 'testthat::test_dir("tests/testthat")'
+Rscript -e "testthat::test_dir('tests/testthat')"
 ```
 
 Before finishing work on the report:
 ```bash
-Rscript -e 'rmarkdown::render("report/report.Rmd", output_format = "all")'
+Rscript -e "rmarkdown::render('report/report.Rmd', output_format = 'all')"
 ```
 
 ---
@@ -140,7 +140,7 @@ Rscript -e 'rmarkdown::render("report/report.Rmd", output_format = "all")'
 | Data query / cleaning | README §5–6, `docs/AI_USAGE.md`, `DECISIONS.md` |
 | Features / models / metrics | README §8–10, `DECISIONS.md`, `docs/REPORT_GUIDE.md` |
 | Figures / tables | `docs/REPORT_GUIDE.md`, captions.md |
-| Packages | `renv::snapshot()`, README §4 |
+| Packages | `renv::install()` then `renv::snapshot()`, README §4 |
 | Results (after re-run) | README §12 from `outputs/tables/T05_test_metrics.csv` |
 
 ---

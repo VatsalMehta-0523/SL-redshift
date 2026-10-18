@@ -139,8 +139,8 @@ redshift.
 
 ```bash
 Rscript run_all.R
-Rscript -e 'testthat::test_dir("tests/testthat")'
-Rscript -e 'rmarkdown::render("report/report.Rmd", output_format = "all")'
+Rscript -e "testthat::test_dir('tests/testthat')"
+Rscript -e "rmarkdown::render('report/report.Rmd', output_format = 'all')"
 ```
 
 Then confirm:
