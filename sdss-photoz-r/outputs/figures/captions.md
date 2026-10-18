@@ -13,3 +13,7 @@
 - **F11:** SVR (RBF kernel) tuning: mean CV RMSE for each (C, σ) pair. The outlined cell is the chosen C = 32, σ = 0.01.
 - **F12:** Learning curves: mean training and test RMSE (±1 SD over 20 random subsets) versus training-set size, for each model with its tuned hyperparameters frozen.
 - **F13:** Distribution of CV RMSE over the same 25 resamples (5-fold × 5) for each model. Lowest mean CV RMSE: M4 SVR (0.0208); baseline 0.0419.
+- **F14:** Photometric versus spectroscopic redshift for the 20 test galaxies. The solid line is perfect agreement; dashed lines mark the catastrophic-outlier threshold |Δz| = 0.15(1 + z). Best learner by test RMSE: M3 Random Forest (RMSE 0.0331, σ_NMAD 0.0285); baseline RMSE 0.0457.
+- **F15:** Normalised residuals Δz/(1 + z) versus spectroscopic redshift for each model on the test set, with a LOESS trend. A trend from positive at low z to negative at high z means predictions are pulled towards the mean redshift.
+- **F16:** Distributions of the normalised residual Δz/(1 + z) on the 20 test galaxies for each model (histogram and kernel density); the dashed line is zero.
+- **F17:** Test-set RMSE for each model with 95% percentile bootstrap confidence intervals (2000 resamples of the 20 test galaxies). The dashed line is the mean-prediction baseline (RMSE 0.0457).

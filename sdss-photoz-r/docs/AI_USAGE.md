@@ -27,7 +27,8 @@
 | AI-005 | 2026-10-18 | Preprocessing | Claude Code (Claude Opus 5.5) | Derived colours, seeded sample to 100, column order | Accepted (scaling deferred to caret, D-010) | `R/02_inspect_clean.R` |
 | AI-006 | 2026-10-18 | EDA (code) | Claude Code (Claude Opus 5.5) | Wrote the EDA script; checked every figure visually; captions generated from the data | Accepted (committed) | `R/03_eda.R`, T01, F01–F06, F20 |
 | AI-007 | 2026-10-18 | Split (code) | Claude Code (Claude Opus 5.5) | Wrote the stratified 80/20 split with leakage assertions and F07 + KS test | Accepted (committed) | `R/04_split.R`, F07 |
-| AI-008 | 2026-10-18 | Modelling (code) | Claude Code (Claude Opus 5.5) | Wrote training with shared CV folds, T03, T04, learning curves, F08–F13 | Pending owner review | `R/05_train.R` |
+| AI-008 | 2026-10-18 | Modelling (code) | Claude Code (Claude Opus 5.5) | Wrote training with shared CV folds, T03, T04, learning curves, F08–F13 | Accepted (committed) | `R/05_train.R` |
+| AI-009 | 2026-10-18 | Evaluation (code) | Claude Code (Claude Opus 5.5) | Wrote test evaluation with bootstrap CIs, T05, F14–F17; diagnosed the CV/test gap | Pending owner review | `R/06_evaluate.R` |
 
 ---
 
@@ -249,8 +250,45 @@
   - In the learning curves (F12), test-set RMSE at n = 80 is clearly higher
     than CV RMSE for the linear and SVR models. Phase 7's residual plots
     should show whether one or two test galaxies cause this.
-- **Owner decision:** _pending review_
+- **Owner decision:** Accepted. The owner committed it.
 - **Resulting code:** `R/05_train.R`; `randomForest` and `kernlab` added
   to `renv.lock`
 - **Effect on data:** none (models saved to `outputs/models/`, git-ignored)
 - **Linked decision:** D-008, D-010, D-014, D-016
+
+### AI-009 — Test-set evaluation
+- **Date:** 2026-10-18
+- **Stage:** Evaluation (code)
+- **Tool / model:** Claude Code (Claude Opus 5.5)
+- **Input given to AI:** the saved models and `test.csv` (via the script).
+- **Prompt (short):** "Write and run R/06_evaluate.R (test metrics with
+  bootstrap CIs, T05, test_predictions.csv, F14–F17)."
+- **AI output / suggestion:**
+  - Wrote `R/06_evaluate.R`. It predicts with the saved models unchanged,
+    computes RMSE, MAE, R², bias, σ_NMAD and η (`utils_metrics.R`) and
+    95% percentile bootstrap CIs (2000 resamples, seed 42) for RMSE, R² and
+    σ_NMAD. It writes T05 and `test_predictions.csv` and draws F14–F17. A
+    re-run gives byte-identical tables.
+  - Checked every figure visually and fixed label overlaps in F14 and F17.
+  - Diagnosed why test RMSE is higher than CV RMSE for the linear model and
+    SVR, using the largest-|Δz| list the script prints and a one-off check of
+    feature ranges (not part of the pipeline). One test galaxy
+    (`1237661950779588703`) has a red u − g but g − r, r − i and i − z at
+    the blue edge of the training set, with r − i below the training minimum.
+    The linear model and the near-linear SVR extrapolate and predict a
+    **negative** redshift for it. Random-forest predictions are averages of
+    training redshifts, so they cannot leave the training range, which is
+    why RF has the lowest test RMSE. In total, 4 of the 20 test galaxies have
+    at least one colour outside the training range.
+  - All learners predict the lowest-z test galaxy too high: no training
+    galaxy is that close, so predictions are pulled towards the mean (F15).
+- **Owner decision:** _pending review_. No modelling choice was changed
+  after seeing the test results (AGENTS.md R5).
+- **Notes for the report:** the 95% CIs overlap heavily, so with only 20 test
+  galaxies no model is clearly better than another. The CV ranking
+  (SVR ≈ LM > RF > k-NN) differs from the test ranking (RF best). Report both
+  and explain the extrapolation effect. Negative z_phot is unphysical, and
+  that belongs in Limitations.
+- **Resulting code:** `R/06_evaluate.R`
+- **Effect on data:** none (read-only)
+- **Linked decision:** D-011, D-014
