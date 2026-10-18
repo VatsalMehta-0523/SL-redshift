@@ -25,7 +25,8 @@
 | AI-003 | 2026-10-18 | Inspection | Claude Code (Claude Opus 5.5) | Checked structure, NA, sentinels, duplicates, ranges, errors, colour outliers; flagged 2 very blue galaxies | Noted | `outputs/logs/02_inspection.txt` |
 | AI-004 | 2026-10-18 | Cleaning | Claude Code (Claude Opus 5.5) | Implemented rules 1–9; suggested flag-only for the 2 blue galaxies | Rejected the suggestion: removed them as planned | `R/02_inspect_clean.R`, `T02_cleaning_log.csv` |
 | AI-005 | 2026-10-18 | Preprocessing | Claude Code (Claude Opus 5.5) | Derived colours, seeded sample to 100, column order | Accepted (scaling deferred to caret, D-010) | `R/02_inspect_clean.R` |
-| AI-006 | 2026-10-18 | EDA (code) | Claude Code (Claude Opus 5.5) | Wrote the EDA script; checked every figure visually; captions generated from the data | Pending owner review | `R/03_eda.R`, T01, F01–F06, F20 |
+| AI-006 | 2026-10-18 | EDA (code) | Claude Code (Claude Opus 5.5) | Wrote the EDA script; checked every figure visually; captions generated from the data | Accepted (committed) | `R/03_eda.R`, T01, F01–F06, F20 |
+| AI-007 | 2026-10-18 | Split (code) | Claude Code (Claude Opus 5.5) | Wrote the stratified 80/20 split with leakage assertions and F07 + KS test | Pending owner review | `R/04_split.R`, F07 |
 
 ---
 
@@ -190,7 +191,27 @@
     overlapped the break line, and the F06 title showed one decimal place.
   - Physics observation for step 7: over this sample's redshift range, the
     break stays inside the g band (F20).
-- **Owner decision:** _pending review_
+- **Owner decision:** Accepted. The owner committed it.
 - **Resulting code:** `R/03_eda.R`, `R/00_setup.R`, `R/utils_plot.R`
 - **Effect on data:** none (read-only)
 - **Linked decision:** D-006
+
+### AI-007 — Train/test split
+- **Date:** 2026-10-18
+- **Stage:** Split (code)
+- **Tool / model:** Claude Code (Claude Opus 5.5)
+- **Input given to AI:** `data/processed/sdss_clean.csv` (via the script).
+- **Prompt (short):** "Write and run R/04_split.R (80/20 stratified split,
+  F07 with KS test)."
+- **AI output / suggestion:** wrote `R/04_split.R`. It splits the data with
+  `caret::createDataPartition(redshift, p = 0.8)` and seed 42, then asserts
+  80/20 sizes, no `objid` in both sets, and that every galaxy is used. It
+  writes `train.csv` and `test.csv` and makes F07 with a two-sample KS test.
+  Added `caret` to `renv.lock`. A re-run gives byte-identical files.
+- **Observation for the report:** the lowest-redshift galaxy of the sample
+  went to the test set, below the training minimum. At that point the models
+  have to extrapolate slightly (see the split summary printed by the script).
+- **Owner decision:** _pending review_
+- **Resulting code:** `R/04_split.R`
+- **Effect on data:** 100 → 80 train + 20 test rows
+- **Linked decision:** D-009, D-014

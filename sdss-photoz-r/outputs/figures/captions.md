@@ -6,3 +6,4 @@
 - **F05:** Pearson correlations among the five features and z_spec. The feature most correlated with redshift is g − r (r = 0.54).
 - **F06:** r-band magnitude versus spectroscopic redshift with a LOESS fit. More distant galaxies are fainter on average (inverse-square law); the dashed line is the r = 17.77 flux limit of the sample. Pearson r = 0.40.
 - **F20:** Observed wavelength of the 4000 Å break, 4000(1 + z) Å (black line), over the SDSS filter bands (shaded: effective wavelength ± FWHM/2, approximate). The grey band marks this sample (z = 0.025–0.221), where the break lies at 4098–4885 Å, inside the g band. It would leave g only at z ≈ 0.34.
+- **F07:** Spectroscopic redshift of the 80 training and 20 test galaxies (histograms, kernel densities and rugs) after a stratified 80/20 split (seed 42). Two-sample KS test: D = 0.088, p = 0.999, so there is no evidence that the two distributions differ.
