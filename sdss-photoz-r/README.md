@@ -467,19 +467,44 @@ phases and reports back after each one.
 > after running the pipeline. Never type numbers from memory or estimate
 > them.** (AGENTS.md rule R7)
 
-**Test-set performance (n = 20):**
+Numbers below were printed by R from `T04`, `T05` and `T06` and pasted in
+unchanged (2026-10-18 run). Re-run the pipeline and refresh this section if
+the data or models change.
+
+**Test-set performance (n = 20), from `T05_test_metrics.csv`:**
 
 | Model | RMSE [95% CI] | MAE | R² [95% CI] | Bias | σ_NMAD [95% CI] | η |
 |---|---|---|---|---|---|---|
-| M0 Baseline | _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ |
-| M1 Linear | _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ |
-| M2 k-NN | _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ |
-| M3 Random Forest | _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ |
-| M4 SVR | _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ |
+| M0 Baseline | 0.0457 [0.0330, 0.0576] | 0.0365 | -0.000 [-0.321, -0.000] | +0.0022 | 0.0327 [0.0179, 0.0652] | 0% |
+| M1 Linear | 0.0410 [0.0231, 0.0580] | 0.0303 | 0.193 [-1.582, 0.738] | -0.0029 | 0.0320 [0.0116, 0.0475] | 0% |
+| M2 k-NN | 0.0428 [0.0299, 0.0545] | 0.0333 | 0.123 [-0.401, 0.423] | +0.0028 | 0.0308 [0.0134, 0.0604] | 0% |
+| M3 Random Forest | 0.0331 [0.0222, 0.0428] | 0.0256 | 0.474 [0.022, 0.721] | +0.0030 | 0.0285 [0.0123, 0.0435] | 0% |
+| M4 SVR | 0.0391 [0.0232, 0.0547] | 0.0295 | 0.266 [-1.340, 0.749] | -0.0019 | 0.0282 [0.0116, 0.0472] | 0% |
 
-**Best model:** _TBD_  **Most important feature:** _TBD_ (from T06)
+**Cross-validation RMSE (mean ± SD, 25 resamples), from `T04_cv_metrics.csv`:**
 
-**Hypotheses:** H1 _TBD_ · H2 _TBD_ · H3 _TBD_ · H4 _TBD_
+| Model | CV RMSE |
+|---|---|
+| M0 Baseline | 0.0419 ± 0.0051 |
+| M1 Linear | 0.0226 ± 0.0039 |
+| M2 k-NN | 0.0324 ± 0.0026 |
+| M3 Random Forest | 0.0305 ± 0.0053 |
+| M4 SVR | 0.0208 ± 0.0038 |
+
+**Best model:** M3 Random Forest on the test set (RMSE 0.0331), and the only
+learner whose 95% CI lies entirely below the baseline. M4 SVR is best in
+cross-validation (0.0208). The rankings differ because the linear model and
+SVR extrapolate to negative redshifts for a test galaxy with out-of-range
+colours (`docs/AI_USAGE.md` AI-009).
+
+**Most important feature:** g − r (RF %IncMSE 44.3, rank 1 in both RF and LM;
+from T06).
+
+**Hypotheses** (verdicts from `outputs/tables/interpretation_notes.md`):
+H1 supported · H2 supported (Spearman ρ = 0.98) · H3 partly supported
+(SVR beats LM in CV; RF and SVR beat LM on the test set; k-NN never does) ·
+H4 supported on point estimates (the test CIs of 3 of 4 learners overlap the
+baseline).
 
 **Key figures:** `F14_pred_vs_true.png` (main result), `F04_colour_vs_redshift.png`
 (physics), `F12_learning_curves.png` (training).
@@ -515,6 +540,9 @@ LaTeX. Draft captions are in `outputs/figures/captions.md`.
   outside this range.
 - **Mixed galaxy types:** red ellipticals have a strong 4000 Å break; blue
   star-forming galaxies have a weaker one. This causes scatter.
+- **Unphysical extrapolation:** the linear model and SVR predict z < 0 for a
+  test galaxy whose colours lie outside the training range. The random forest
+  cannot extrapolate beyond the training redshifts, so it does not do this.
 - **Very blue galaxies are excluded.** The 5·MAD colour cut removed two
   galaxies that are blue in every colour (likely real star-forming galaxies),
   so the models were never trained or tested on such objects (T02,

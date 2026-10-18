@@ -29,7 +29,8 @@
 | AI-007 | 2026-10-18 | Split (code) | Claude Code (Claude Opus 5.5) | Wrote the stratified 80/20 split with leakage assertions and F07 + KS test | Accepted (committed) | `R/04_split.R`, F07 |
 | AI-008 | 2026-10-18 | Modelling (code) | Claude Code (Claude Opus 5.5) | Wrote training with shared CV folds, T03, T04, learning curves, F08–F13 | Accepted (committed) | `R/05_train.R` |
 | AI-009 | 2026-10-18 | Evaluation (code) | Claude Code (Claude Opus 5.5) | Wrote test evaluation with bootstrap CIs, T05, F14–F17; diagnosed the CV/test gap | Accepted (committed) | `R/06_evaluate.R` |
-| AI-010 | 2026-10-18 | Interpretation (code) | Claude Code (Claude Opus 5.5) | Wrote feature importance, partial dependence and auto-generated hypothesis verdicts | Pending owner review | `R/07_interpret.R`, T06, F18–F19 |
+| AI-010 | 2026-10-18 | Interpretation (code) | Claude Code (Claude Opus 5.5) | Wrote feature importance, partial dependence and auto-generated hypothesis verdicts | Accepted (committed) | `R/07_interpret.R`, T06, F18–F19 |
+| AI-011 | 2026-10-18 | Report | Claude Code (Claude Opus 5.5) | Drafted report.Rmd with all numbers read from tables; filled README §12 from T04–T06 | Pending owner review | `report/report.Rmd`, README §12 |
 
 ---
 
@@ -319,8 +320,39 @@
     result.
   - Checked F18 and F19 visually. The script runs without warnings, and a
     re-run gives byte-identical T06 and notes.
-- **Owner decision:** _pending review_
+- **Owner decision:** Accepted. The owner committed it.
 - **Resulting code:** `R/07_interpret.R`; `pdp` and `patchwork` added to
   `renv.lock`
 - **Effect on data:** none (read-only)
 - **Linked decision:** D-006, D-008
+
+### AI-011 — Report and README results
+- **Date:** 2026-10-18
+- **Stage:** Report
+- **Tool / model:** Claude Code (Claude Opus 5.5)
+- **Input given to AI:** all tables in `outputs/tables/`, the figure captions
+  and this log.
+- **Prompt (short):** "Write report/report.Rmd (HTML + Word) with numbers
+  read from tables, and fill README §12 Results from T05/T06."
+- **AI output / suggestion:**
+  - Drafted `report/report.Rmd` following `docs/REPORT_GUIDE.md` §3. Every
+    number is an inline R expression reading `outputs/tables/` or the
+    processed data. Captions come from `captions.md`, the hypothesis verdicts
+    from `interpretation_notes.md`, and this log is included as Appendix A.
+    It renders to HTML and Word without warnings, with all 20 figures in each.
+  - During the AI's own review of the rendered text it found and fixed two
+    claims that had been written as fixed text. The draft said σ_NMAD was
+    "larger than" the literature 0.02–0.03 when it falls within that range,
+    and it overstated how far the models beat the baseline. Both sentences
+    are now computed from T05, including which models have a CI entirely
+    below the baseline.
+  - Filled README §12 with rows printed by an R snippet from T04, T05 and
+    T06 and pasted unchanged.
+- **Owner decision:** _pending review_. The prose is a draft for the owner to
+  rewrite in their own words. The physical interpretations (4000 Å break,
+  u − g as a galaxy-type indicator) should be checked against course
+  material.
+- **Resulting code:** `report/report.Rmd`, `report/report.html`,
+  `report/report.docx`, README §12 and §14
+- **Effect on data:** none (read-only)
+- **Linked decision:** TASK.md §5 (Definition of Done)

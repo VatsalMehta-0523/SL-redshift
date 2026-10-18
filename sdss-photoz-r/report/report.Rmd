@@ -1,0 +1,469 @@
+---
+title: "Photometric Redshift Prediction of Galaxies using SDSS Data"
+subtitle: "Unit 4 Mini-Project: AI-assisted Analysis of Physics Data using Supervised Learning in R"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+    self_contained: true
+  word_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include = FALSE}
+# Every number in this report is read from outputs/tables/ or computed here
+# from the processed data (AGENTS.md R7). Nothing is typed in by hand.
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE,
+                      out.width = "100%", dpi = 300,
+                      # Word cannot align figures; centring applies to HTML only
+                      fig.align = if (knitr::is_html_output()) "center" else "default")
+library(readr)
+library(dplyr)
+library(here)
+
+tab <- function(name, ...) read_csv(here("outputs", "tables", name), show_col_types = FALSE, ...)
+f2 <- function(x) sprintf("%.2f", x)
+f3 <- function(x) sprintf("%.3f", x)
+f4 <- function(x) sprintf("%.4f", x)
+pct <- function(x) sprintf("%.0f%%", 100 * x)
+
+t01 <- tab("T01_dataset_summary.csv")
+t02 <- tab("T02_cleaning_log.csv")
+t03 <- tab("T03_hyperparameters.csv")
+t04 <- tab("T04_cv_metrics.csv")
+t05 <- tab("T05_test_metrics.csv")
+t06 <- tab("T06_feature_importance.csv")
+preds <- tab("test_predictions.csv", col_types = cols(objid = col_character(), .default = col_double()))
+
+types <- cols(objid = col_character(), .default = col_double())
+train <- read_csv(here("data", "processed", "train.csv"), col_types = types)
+test <- read_csv(here("data", "processed", "test.csv"), col_types = types)
+
+# Figure captions written by the pipeline (outputs/figures/captions.md)
+cap_lines <- readLines(here("outputs", "figures", "captions.md"), encoding = "UTF-8")
+cap_lines <- cap_lines[startsWith(cap_lines, "- **F")]
+caps <- setNames(sub("^- \\*\\*F[0-9]+:\\*\\* ", "", cap_lines),
+                 sub("^- \\*\\*(F[0-9]+):.*$", "\\1", cap_lines))
+cap <- function(id) paste0("Figure ", id, ". ", caps[[id]])
+fig <- function(id) knitr::include_graphics(Sys.glob(here("outputs", "figures", paste0(id, "_*.png"))))
+
+# Key quantities used in the text
+n_raw <- t02$rows_before[t02$step == 1]
+n_rule6 <- t02$rows_removed[t02$step == 6]
+n_clean <- t02$rows_after[t02$step == 9]
+z_row <- filter(t01, variable == "redshift")
+ks <- ks.test(train$redshift, test$redshift)
+
+learners <- c("M1_lm", "M2_knn", "M3_rf", "M4_svr")
+cv_best <- t04 |> filter(model %in% learners) |> slice_min(rmse_mean, n = 1)
+cv_base <- t04 |> filter(model == "M0_baseline")
+te_best <- t05 |> filter(model %in% learners) |> slice_min(rmse, n = 1)
+te_base <- t05 |> filter(model == "M0_baseline")
+row05 <- function(id) filter(t05, model == id)
+row04 <- function(id) filter(t04, model == id)
+
+top <- t06 |> filter(rf_rank == 1)
+neg <- preds |>
+  tidyr::pivot_longer(all_of(learners), names_to = "model", values_to = "z_phot") |>
+  filter(z_phot < 0)
+FEATURES <- c("u_g", "g_r", "r_i", "i_z", "r")
+outside_n <- sum(Reduce(`|`, lapply(FEATURES, \(f) test[[f]] < min(train[[f]]) | test[[f]] > max(train[[f]]))))
+labels <- setNames(t05$label, t05$model)
+
+# Learners whose whole 95% CI lies below the baseline RMSE (clear improvement)
+clear_wins <- t05 |> filter(model %in% learners, rmse_hi < te_base$rmse) |> pull(label)
+outlier_text <- if (te_best$eta == 0) "no catastrophic outliers" else
+  paste0("catastrophic-outlier fraction ", pct(te_best$eta))
+
+# Literature: SDSS photo-z with very large training sets reach sigma_NMAD ~ 0.02-0.03
+LIT_SNMAD <- c(0.02, 0.03)
+snmad_vs_lit <- if (te_best$sigma_nmad > LIT_SNMAD[2]) {
+  "is larger than"
+} else if (te_best$sigma_nmad >= LIT_SNMAD[1]) {
+  "falls within"
+} else {
+  "is below"
+}
+
+# Include a generated markdown file, demoting its headings by `shift` levels
+include_md <- function(lines, shift = 2) {
+  lines <- sub("^(#+) ", paste0("\\1", strrep("#", shift), " "), lines)
+  cat(lines, sep = "\n")
+}
+notes <- readLines(here("outputs", "tables", "interpretation_notes.md"), encoding = "UTF-8")
+notes_section <- function(heading) {
+  start <- which(notes == heading)
+  rest <- which(startsWith(notes, "## ") & seq_along(notes) > start)
+  end <- if (length(rest)) min(rest) - 1 else length(notes)
+  notes[(start + 1):end]
+}
+```
+
+# Abstract {-}
+
+We predict the redshift of galaxies, a measure of their distance, from their
+brightness in the five SDSS filters. The data are `r n_clean` galaxies from
+the Sloan Digital Sky Survey (DR18) with spectroscopic redshifts between
+`r f3(z_row$min)` and `r f3(z_row$max)`. They were cleaned with AI assistance
+and split into `r nrow(train)` training and `r nrow(test)` test galaxies. Four
+supervised models (linear regression, k-nearest neighbours, random forest and
+support vector regression) were tuned by repeated cross-validation in R and
+compared with a mean-prediction baseline. In cross-validation the best model
+was `r cv_best$label` (RMSE `r f4(cv_best$rmse_mean)` vs `r f4(cv_base$rmse_mean)`
+for the baseline). On the held-out test set the best model was
+`r te_best$label` (RMSE `r f4(te_best$rmse)`, σ~NMAD~ `r f4(te_best$sigma_nmad)`,
+`r outlier_text`). The colour g − r is by far the most important
+predictor, and predicted redshift rises steadily with it. This is the
+signature of the 4000 Å break moving through the g filter as galaxies recede.
+
+# Introduction and physics background
+
+## Redshift
+
+Light from a receding galaxy is stretched to longer wavelengths:
+
+$$ z = \frac{\lambda_{\text{obs}} - \lambda_{\text{emit}}}{\lambda_{\text{emit}}}, \qquad \lambda_{\text{obs}} = (1+z)\,\lambda_{\text{emit}}. $$
+
+At low redshift, Hubble's law gives $v \approx cz = H_0 d$, so the redshift
+measures distance.
+
+## Spectroscopic versus photometric redshift
+
+A **spectroscopic** redshift comes from the shift of spectral lines. It is
+very precise but slow and expensive to obtain. A **photometric** redshift
+estimates z from the brightness in a few broad filters. It is less precise
+but works for billions of galaxies, which is essential for surveys such as
+LSST, Euclid and DES. Galaxies that have both measurements let us *learn* the
+mapping from photometry to redshift: a supervised regression problem.
+
+## Why colours encode redshift: the 4000 Å break
+
+Older stellar populations produce a sharp drop in galaxy spectra blueward of
+4000 Å. As z increases, the break appears at $4000(1+z)$ Å and removes flux
+from the bluer filter, so the colour (magnitude difference) between filters
+changes. Figure F20 shows that, for the redshift range of this sample, the
+break always lies inside the g band. We therefore expect **g − r** to redden
+with redshift and to be the most informative feature. The r magnitude adds
+distance information because, in a flux-limited sample, more distant galaxies
+look fainter (inverse-square law).
+
+```{r f20, fig.cap = cap("F20")}
+fig("F20")
+```
+
+## Aim and hypotheses
+
+Can a galaxy's colours predict its redshift? We test four hypotheses:
+
+- **H1:** g − r is the most important predictor.
+- **H2:** predicted redshift rises monotonically with g − r.
+- **H3:** non-linear models (k-NN, random forest, SVR) beat linear regression.
+- **H4:** all models beat the mean-prediction baseline.
+
+# Data
+
+## Acquisition
+
+`r n_raw` random galaxies were retrieved from SDSS DR18 with a SkyServer SQL
+query (`data/sql/sdss_query.sql`) by `R/01_acquire.R`. The query keeps
+spectroscopically confirmed galaxies with reliable redshifts
+(`zWarning = 0`), clean photometry, the Main Galaxy Sample flux limit
+14 ≤ r ≤ 17.77, 0.01 < z < 0.5 and magnitude errors below 0.2. Magnitudes
+are corrected for Milky Way dust (`dered_*`). The raw file is frozen and
+recorded with an MD5 checksum in `data/raw/ACQUISITION.md`.
+
+## AI-assisted inspection and cleaning
+
+Following workflow step 2, an AI assistant (Claude Code) inspected the raw
+data's structure, missing and sentinel values, duplicates, ranges and colour
+outliers, then proposed cleaning rules. The student reviewed every rule. Each
+rule logs its row counts (Table T02), and every AI interaction is recorded in
+the appendix. The data contained no missing values, sentinels or duplicates.
+The colour-outlier rule (median ± 5·MAD) removed `r n_rule6` galaxies that
+were blue in all colours. The AI suggested keeping them as probably real
+star-forming galaxies; the student chose to apply the planned rule. A random
+sample of `r n_clean` galaxies (seed 42) forms the analysis set.
+
+```{r t02}
+knitr::kable(select(t02, step, rule, rows_before, rows_after, rows_removed),
+             col.names = c("Step", "Rule", "Rows before", "Rows after", "Removed"),
+             caption = "Table T02. Cleaning log: each rule and the rows it removed.")
+```
+
+## Summary statistics
+
+```{r t01}
+knitr::kable(t01, digits = 3,
+             col.names = c("Variable", "n", "Mean", "SD", "Min", "Median", "Max"),
+             caption = "Table T01. Summary statistics of the analysis dataset.")
+```
+
+```{r f01, fig.cap = cap("F01")}
+fig("F01")
+```
+
+```{r f02, fig.cap = cap("F02")}
+fig("F02")
+```
+
+## Exploratory physics
+
+```{r f03, fig.cap = cap("F03")}
+fig("F03")
+```
+
+```{r f04, fig.cap = cap("F04")}
+fig("F04")
+```
+
+```{r f05, fig.cap = cap("F05")}
+fig("F05")
+```
+
+```{r f06, fig.cap = cap("F06")}
+fig("F06")
+```
+
+# Methods
+
+## Features and target
+
+The target is the spectroscopic redshift. The features are the four colours
+u − g, g − r, r − i, i − z and the r-band magnitude. Colours remove the overall
+brightness and keep the shape of the spectrum, while r carries the
+brightness–distance information.
+
+## Train/test split
+
+A stratified split on redshift (`caret::createDataPartition`, seed 42) gives
+`r nrow(train)` training and `r nrow(test)` test galaxies. A two-sample KS test
+finds no difference between their redshift distributions (D = `r f3(ks$statistic)`,
+p = `r f3(ks$p.value)`, Figure F07). The test set was not used for any
+training, tuning or preprocessing decision.
+
+```{r f07, fig.cap = cap("F07")}
+fig("F07")
+```
+
+## Models and tuning
+
+All models use `redshift ~ u_g + g_r + r_i + i_z + r` and the **same** 25
+resamples (5-fold cross-validation repeated 5 times) on the training set.
+Hyperparameters were chosen by the lowest mean CV RMSE (Table T03). Centring
+and scaling were fitted inside each training fold.
+
+```{r t03}
+knitr::kable(select(t03, label, parameter, search_grid, selected),
+             col.names = c("Model", "Parameter", "Search grid", "Selected"),
+             caption = "Table T03. Hyperparameter grids and selected values.")
+```
+
+## Metrics
+
+With $\Delta z = (z_{\text{phot}} - z_{\text{spec}})/(1 + z_{\text{spec}})$ we
+report RMSE, MAE, $R^2 = 1 - SS_{\text{res}}/SS_{\text{tot}}$, bias = mean(Δz),
+the robust scatter $\sigma_{\text{NMAD}} = 1.4826 \times \text{median}(|\Delta z - \text{median}(\Delta z)|)$
+and the catastrophic-outlier fraction η = fraction with |Δz| > 0.15. Test
+metrics carry 95% percentile bootstrap confidence intervals (2000 resamples).
+
+# Results
+
+## Training
+
+```{r f08, fig.cap = cap("F08")}
+fig("F08")
+```
+
+```{r f09, fig.cap = cap("F09")}
+fig("F09")
+```
+
+```{r f10, fig.cap = cap("F10")}
+fig("F10")
+```
+
+```{r f11, fig.cap = cap("F11")}
+fig("F11")
+```
+
+```{r t04}
+knitr::kable(select(t04, label, rmse_mean, rmse_sd, r2_mean, r2_sd, mae_mean),
+             digits = 4,
+             col.names = c("Model", "RMSE mean", "RMSE SD", "R² mean", "R² SD", "MAE mean"),
+             caption = "Table T04. Cross-validated metrics on the training set (mean and SD over 25 resamples).")
+```
+
+```{r f13, fig.cap = cap("F13")}
+fig("F13")
+```
+
+```{r f12, fig.cap = cap("F12")}
+fig("F12")
+```
+
+## Test-set performance
+
+```{r t05}
+knitr::kable(
+  t05 |>
+    mutate(`RMSE [95% CI]` = sprintf("%.4f [%.4f, %.4f]", rmse, rmse_lo, rmse_hi),
+           `R² [95% CI]` = sprintf("%.3f [%.3f, %.3f]", r2, r2_lo, r2_hi),
+           `σ_NMAD [95% CI]` = sprintf("%.4f [%.4f, %.4f]", sigma_nmad, sigma_nmad_lo, sigma_nmad_hi),
+           MAE = f4(mae), Bias = f4(bias), `η` = pct(eta)) |>
+    select(Model = label, `RMSE [95% CI]`, MAE, `R² [95% CI]`, Bias, `σ_NMAD [95% CI]`, `η`),
+  caption = glue::glue("Table T05. Test-set metrics (n = {nrow(test)}) with 95% bootstrap confidence intervals.")
+)
+```
+
+```{r f14, fig.cap = cap("F14")}
+fig("F14")
+```
+
+```{r f17, fig.cap = cap("F17")}
+fig("F17")
+```
+
+## Error analysis
+
+```{r f15, fig.cap = cap("F15")}
+fig("F15")
+```
+
+```{r f16, fig.cap = cap("F16")}
+fig("F16")
+```
+
+# Discussion: physics interpretation
+
+## Which features matter and why
+
+```{r t06}
+knitr::kable(select(t06, label, rf_inc_mse, rf_rank, lm_std_coef, lm_ci_lo, lm_ci_hi, lm_rank),
+             digits = 4,
+             col.names = c("Feature", "RF %IncMSE", "RF rank", "LM std. coef.",
+                           "LM CI low", "LM CI high", "LM rank"),
+             caption = "Table T06. Feature importance: random-forest permutation importance and standardised linear-regression coefficients with 95% CIs.")
+```
+
+```{r f18, fig.cap = cap("F18")}
+fig("F18")
+```
+
+```{r f19, fig.cap = cap("F19")}
+fig("F19")
+```
+
+The random forest ranks `r top$label` first (%IncMSE `r f2(top$rf_inc_mse)`),
+and the partial dependence (Figure F19) shows predicted redshift climbing
+steadily with g − r. This is the behaviour expected from the 4000 Å break
+moving redward through the g filter: the galaxy loses flux in g relative to r
+and its g − r colour reddens. r − i correlates with z on its own (Figure F04)
+but adds little once g − r is known, because the two colours are strongly
+correlated (Figure F05).
+
+```{r notes-importance, results = "asis"}
+include_md(notes_section("## Feature importance (T06, F18)"))
+```
+
+## Hypotheses
+
+```{r notes-hypotheses, results = "asis"}
+include_md(notes_section("## Hypotheses (README §3.6)"))
+```
+
+## Where the models fail
+
+Cross-validation ranks `r cv_best$label` first, but on the test set
+`r te_best$label` is best. The difference comes from a few test galaxies whose
+colours lie outside the range seen in training (`r outside_n` of
+`r nrow(test)`). One of them has a red u − g but unusually blue g − r, r − i and
+i − z. The linear model and the near-linear SVR extrapolate for it and predict
+a **negative**, unphysical redshift (`r nrow(neg)` predictions below zero in
+total). A random forest predicts averages of training redshifts and cannot
+leave the training range, so it is more robust to such galaxies. Every model
+also pulls the lowest- and highest-redshift galaxies towards the mean redshift
+(Figure F15), a typical effect of a small training set.
+
+With only `r nrow(test)` test galaxies the confidence intervals in Table T05
+overlap strongly, so no model is clearly better than another on this test set.
+The robust scatter σ~NMAD~ of `r f4(te_best$sigma_nmad)` (95% CI
+`r f4(te_best$sigma_nmad_lo)`–`r f4(te_best$sigma_nmad_hi)`) `r snmad_vs_lit`
+the ≈ `r LIT_SNMAD[1]`–`r LIT_SNMAD[2]` reported for SDSS photo-z trained on
+hundreds of thousands of galaxies. With only `r nrow(train)` training
+galaxies and a narrow redshift range this is encouraging, but the wide
+interval means the comparison is not precise. The learning
+curves (Figure F12) show the gap between training and test error for each
+model as the training set grows.
+
+```{r notes-physics, results = "asis"}
+include_md(notes_section("## Physics of the sample"))
+```
+
+# Limitations
+
+- **Small sample.** n = `r n_clean` is set by the assignment brief. Real
+  photo-z work uses 10^5^–10^6^ training galaxies.
+- **Small test set.** With `r nrow(test)` galaxies, metrics have wide
+  confidence intervals and η can only change in steps of
+  `r pct(1 / nrow(test))`.
+- **Narrow redshift range.** The models are valid only for
+  `r f3(z_row$min)` ≤ z ≤ `r f3(z_row$max)` and r ≤ 17.77. In this range the
+  break never leaves the g band.
+- **Very blue galaxies excluded.** The 5·MAD cleaning rule removed galaxies
+  that are blue in every colour, so the models have not learned such objects.
+- **Unphysical extrapolation.** The linear model and SVR can predict z < 0 for
+  galaxies with colours outside the training range.
+- **Unused information.** Magnitude errors were not used as weights or inputs.
+
+# Conclusion
+
+Five-band SDSS photometry predicts galaxy redshift better than a mean-value
+baseline, even with only `r nrow(train)` training galaxies. On the test set
+the best model, `r te_best$label`, reaches RMSE `r f4(te_best$rmse)` against
+`r f4(te_base$rmse)` for the baseline.
+`r n_beat <- sum(t05$rmse[t05$model %in% learners] < te_base$rmse); if (n_beat == length(learners)) "Every learner beats" else paste(n_beat, "of", length(learners), "learners beat")`
+the baseline on the point estimate, but only `r if (length(clear_wins)) paste(clear_wins, collapse = ", ") else "no model"`
+has a 95% confidence interval entirely below it, so with
+`r nrow(test)` test galaxies the improvement is clear only for
+`r if (length(clear_wins) == 1) "that model" else "those models"`. The models learn the physics: g − r,
+which tracks the 4000 Å break moving through the g filter, dominates the
+predictions, and predicted redshift rises monotonically with it. Smooth models
+(linear regression, SVR) do best in cross-validation, while the random forest
+is the most robust on unusual test galaxies because it cannot extrapolate to
+unphysical values.
+
+# References
+
+1. York, D. G. et al. (2000). *The Sloan Digital Sky Survey: Technical Summary.* AJ, 120, 1579.
+2. Strauss, M. A. et al. (2002). *Spectroscopic Target Selection in the SDSS: The Main Galaxy Sample.* AJ, 124, 1810.
+3. Csabai, I. et al. (2003). *The Application of Photometric Redshifts to the SDSS Early Data Release.* AJ, 125, 580.
+4. Collister, A. A. & Lahav, O. (2004). *ANNz: Estimating Photometric Redshifts Using Artificial Neural Networks.* PASP, 116, 345.
+5. Beck, R. et al. (2016). *Photometric redshifts for the SDSS Data Release 12.* MNRAS, 460, 1371.
+6. Salvato, M., Ilbert, O. & Hoyle, B. (2019). *The many flavours of photometric redshifts.* Nature Astronomy, 3, 212.
+7. Bruzual, G. (1983). *Spectral evolution of galaxies. I. Early-type systems.* ApJ, 273, 105.
+8. Kuhn, M. (2008). *Building Predictive Models in R Using the caret Package.* J. Stat. Softw., 28(5).
+9. Breiman, L. (2001). *Random Forests.* Machine Learning, 45, 5–32.
+10. SDSS SkyServer DR18: <https://skyserver.sdss.org/dr18>.
+
+*Funding for SDSS has been provided by the Alfred P. Sloan Foundation, the
+Participating Institutions, the National Science Foundation, and the U.S.
+Department of Energy Office of Science.*
+
+# Appendix A: AI usage log {-}
+
+```{r ai-log, results = "asis"}
+ai <- readLines(here("docs", "AI_USAGE.md"), encoding = "UTF-8")
+summary_start <- which(startsWith(ai, "## Summary table"))
+template_start <- which(startsWith(ai, "## Entry template"))
+entries_start <- which(startsWith(ai, "## Entries"))
+include_md(c(ai[summary_start:(template_start - 1)], ai[entries_start:length(ai)]))
+```
+
+# Appendix B: Software environment {-}
+
+```{r session}
+sessionInfo()
+```
