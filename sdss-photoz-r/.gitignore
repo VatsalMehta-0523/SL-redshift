@@ -1,0 +1,29 @@
+# R
+.Rhistory
+.RData
+.Rproj.user/
+*.Rproj
+.Ruserdata
+
+# renv (keep renv.lock and renv/activate.R)
+renv/library/
+renv/local/
+renv/staging/
+renv/cellar/
+
+# Large / regenerable artefacts
+outputs/models/*.rds
+
+# Report build intermediates
+report/*_files/
+report/*_cache/
+report/*.knit.*
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# NOTE: data/raw/sdss_raw.csv is intentionally COMMITTED (D-015).
+# NOTE: outputs/figures and outputs/tables are committed so the report is reproducible.
