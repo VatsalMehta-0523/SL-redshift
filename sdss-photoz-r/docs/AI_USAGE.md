@@ -28,7 +28,8 @@
 | AI-006 | 2026-10-18 | EDA (code) | Claude Code (Claude Opus 5.5) | Wrote the EDA script; checked every figure visually; captions generated from the data | Accepted (committed) | `R/03_eda.R`, T01, F01–F06, F20 |
 | AI-007 | 2026-10-18 | Split (code) | Claude Code (Claude Opus 5.5) | Wrote the stratified 80/20 split with leakage assertions and F07 + KS test | Accepted (committed) | `R/04_split.R`, F07 |
 | AI-008 | 2026-10-18 | Modelling (code) | Claude Code (Claude Opus 5.5) | Wrote training with shared CV folds, T03, T04, learning curves, F08–F13 | Accepted (committed) | `R/05_train.R` |
-| AI-009 | 2026-10-18 | Evaluation (code) | Claude Code (Claude Opus 5.5) | Wrote test evaluation with bootstrap CIs, T05, F14–F17; diagnosed the CV/test gap | Pending owner review | `R/06_evaluate.R` |
+| AI-009 | 2026-10-18 | Evaluation (code) | Claude Code (Claude Opus 5.5) | Wrote test evaluation with bootstrap CIs, T05, F14–F17; diagnosed the CV/test gap | Accepted (committed) | `R/06_evaluate.R` |
+| AI-010 | 2026-10-18 | Interpretation (code) | Claude Code (Claude Opus 5.5) | Wrote feature importance, partial dependence and auto-generated hypothesis verdicts | Pending owner review | `R/07_interpret.R`, T06, F18–F19 |
 
 ---
 
@@ -282,8 +283,8 @@
     at least one colour outside the training range.
   - All learners predict the lowest-z test galaxy too high: no training
     galaxy is that close, so predictions are pulled towards the mean (F15).
-- **Owner decision:** _pending review_. No modelling choice was changed
-  after seeing the test results (AGENTS.md R5).
+- **Owner decision:** Accepted. The owner committed it. No modelling choice
+  was changed after seeing the test results (AGENTS.md R5).
 - **Notes for the report:** the 95% CIs overlap heavily, so with only 20 test
   galaxies no model is clearly better than another. The CV ranking
   (SVR ≈ LM > RF > k-NN) differs from the test ranking (RF best). Report both
@@ -292,3 +293,34 @@
 - **Resulting code:** `R/06_evaluate.R`
 - **Effect on data:** none (read-only)
 - **Linked decision:** D-011, D-014
+
+### AI-010 — Physics interpretation
+- **Date:** 2026-10-18
+- **Stage:** Interpretation (code)
+- **Tool / model:** Claude Code (Claude Opus 5.5)
+- **Input given to AI:** the saved LM and RF models, the train/test CSVs and
+  T04, T05 and `test_predictions.csv` (via the script).
+- **Prompt (short):** "Write and run R/07_interpret.R (T06 feature
+  importance, F18, F19 partial dependence, interpretation_notes.md)."
+- **AI output / suggestion:**
+  - T06 combines RF permutation importance (%IncMSE) with standardised LM
+    coefficients, their 95% CIs and p-values, and ranks each. F18 shows both
+    side by side, built with `patchwork`. F19 shows the RF partial dependence
+    on g − r and r − i (`pdp`, training data only).
+  - `interpretation_notes.md` turns H1–H4 into verdicts computed from the
+    tables, so the report does not depend on typed-in numbers. H3 has three
+    outcomes (supported, partly supported, not supported) and names the
+    models, rather than a single yes or no.
+  - Added an interpretation line about u − g. It barely correlates with z on
+    its own but is the second most important feature, with a negative
+    coefficient at fixed g − r. The AI's explanation: u − g traces galaxy
+    type, which separates intrinsic redness from redshift reddening in g − r.
+    This is a physical interpretation for the owner to check, not a tested
+    result.
+  - Checked F18 and F19 visually. The script runs without warnings, and a
+    re-run gives byte-identical T06 and notes.
+- **Owner decision:** _pending review_
+- **Resulting code:** `R/07_interpret.R`; `pdp` and `patchwork` added to
+  `renv.lock`
+- **Effect on data:** none (read-only)
+- **Linked decision:** D-006, D-008

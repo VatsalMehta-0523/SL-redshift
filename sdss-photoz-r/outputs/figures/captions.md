@@ -17,3 +17,5 @@
 - **F15:** Normalised residuals Δz/(1 + z) versus spectroscopic redshift for each model on the test set, with a LOESS trend. A trend from positive at low z to negative at high z means predictions are pulled towards the mean redshift.
 - **F16:** Distributions of the normalised residual Δz/(1 + z) on the 20 test galaxies for each model (histogram and kernel density); the dashed line is zero.
 - **F17:** Test-set RMSE for each model with 95% percentile bootstrap confidence intervals (2000 resamples of the 20 test galaxies). The dashed line is the mean-prediction baseline (RMSE 0.0457).
+- **F18:** Feature importance. Left: random-forest permutation importance (%IncMSE). Right: standardised linear-regression coefficients with 95% CIs (change in predicted z per 1 SD of each feature). Most important: g − r (RF) and g − r (LM).
+- **F19:** Partial dependence of the random-forest redshift prediction on g − r and r − i (training data; rugs show the observed values). Over the observed range, predicted z changes by 0.099 with g − r (Spearman ρ = 0.98).
