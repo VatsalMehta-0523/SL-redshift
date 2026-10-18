@@ -97,5 +97,6 @@ BREAK_REST <- 4000 # rest-frame wavelength of the 4000 Å break (Å)
 
 # --- Shared helpers ----------------------------------------------------------
 
+source(here::here("R", "utils_data.R"))
 source(here::here("R", "utils_metrics.R"))
 source(here::here("R", "utils_plot.R"))

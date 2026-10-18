@@ -17,6 +17,32 @@ redshifting through the filters).
 
 ---
 
+## Quick start
+
+Needs R ≥ 4.3 on your PATH (§4). Run every command from the `sdss-photoz-r/`
+folder, in PowerShell, cmd or bash.
+
+```bash
+# 1. Install the exact package versions (once)
+Rscript -e "renv::restore(prompt = FALSE)"
+
+# 2. Run the full analysis: cleaning → EDA → split → training → evaluation → interpretation
+Rscript run_all.R
+
+# 3. Open the interactive app: type in a galaxy's magnitudes, get its predicted redshift
+Rscript -e "shiny::runApp('app', launch.browser = TRUE)"
+
+# 4. Build the report (HTML + Word)
+Rscript -e "rmarkdown::render('report/report.Rmd', output_format = 'all')"
+```
+
+The app needs the trained models, which are not stored in git. Run step 2
+(or just `Rscript R/05_train.R`) before step 3 on a fresh clone. Press
+**Ctrl+C** in the terminal to stop the app. Details: §11 (pipeline),
+§11.1 (app), §4 (setup in VS Code).
+
+---
+
 ## Table of contents
 
 1. [Project at a glance](#1-project-at-a-glance)
@@ -164,6 +190,7 @@ that `Rscript` works in any terminal. Check it with `Rscript --version`.
 | Interpretation | `pdp`, `vip` |
 | Reporting | `rmarkdown`, `knitr` |
 | Testing / tooling | `testthat`, `renv`, `styler`, `lintr`, `languageserver` (VS Code) |
+| Interactive app | `shiny` |
 
 `renv.lock` grows phase by phase: a phase that needs a new package runs
 `renv::install()` and then `renv::snapshot()`.
@@ -332,6 +359,8 @@ sdss-photoz-r/
 │   └── processed/          ← sdss_clean.csv, train.csv, test.csv
 ├── R/
 │   ├── 00_setup.R          ← packages, SEED = 42, paths, theme
+│   ├── utils_data.R        ← FEATURES, derive_colours() (shared by cleaning + app)
+│   ├── utils_predict.R     ← load_models(), predict_redshift() with range checks
 │   ├── utils_metrics.R     ← rmse(), mae(), r2(), bias(), sigma_nmad(), eta()
 │   ├── utils_plot.R        ← theme_report(), save_fig(), model colours
 │   ├── 01_acquire.R        ← step 1
@@ -341,6 +370,7 @@ sdss-photoz-r/
 │   ├── 05_train.R          ← step 5
 │   ├── 06_evaluate.R       ← step 6
 │   └── 07_interpret.R      ← step 7
+├── app/app.R               ← Shiny app: enter magnitudes → predicted redshift
 ├── run_all.R               ← runs 00 → 07, logs time, writes sessionInfo
 ├── report/report.Rmd       ← → report.html + report.docx
 ├── outputs/
@@ -458,6 +488,48 @@ terminal (§4.3).
 
 Using a coding agent? Paste **[PROMPT.md](PROMPT.md)** into it. It works in 10
 phases and reports back after each one.
+
+### 11.1 Interactive prediction app (inference)
+
+`app/app.R` is a Shiny web app. You type in a galaxy's five de-reddened SDSS
+magnitudes and it predicts the redshift with the trained models.
+
+```bash
+Rscript -e "shiny::runApp('app', launch.browser = TRUE)"
+```
+
+Run it from the `sdss-photoz-r/` folder. The trained models
+(`outputs/models/*.rds`) are git-ignored, so on a fresh clone run
+`Rscript R/05_train.R` first (about 40 s).
+
+What the app does:
+
+1. **Input:** the magnitudes u, g, r, i, z (`dered_*` values from SDSS), or a
+   real test-set galaxy chosen from **Start from** so you can compare against
+   its measured redshift.
+2. **Same preprocessing as training:** it computes the colours u − g, g − r,
+   r − i and i − z with `derive_colours()` (`R/utils_data.R`).
+3. **Predict:** returns z from M1–M4. **M3 Random Forest is recommended**,
+   because it was best on the test set (§12) and cannot predict unphysical
+   values.
+4. **Validity check:** flags every feature outside the training range and
+   marks negative (unphysical) predictions. Outside the training range the
+   models are extrapolating (§14).
+5. **Context:** a plot of g − r against z for the training galaxies, with the
+   predictions marked, and where the 4000 Å break falls at the predicted
+   redshift.
+
+The prediction logic lives in `R/utils_predict.R` (`load_models()`,
+`training_ranges()`, `predict_redshift()`), so it can also be used from a
+script:
+
+```r
+source("R/00_setup.R"); source("R/utils_predict.R")
+models <- load_models()
+ranges <- training_ranges(readr::read_csv(PATHS$train, col_types = RAW_COL_TYPES))
+predict_redshift(data.frame(u = 19.5, g = 17.96, r = 17.18, i = 16.73, zmag = 16.36),
+                 models, ranges)
+```
 
 ---
 

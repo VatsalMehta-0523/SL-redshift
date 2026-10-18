@@ -38,15 +38,8 @@ add_log <- function(log, step, rule, rows_before, rows_after, reason, details = 
   ))
 }
 
-#' Colours = differences of magnitudes = flux ratios (spectral shape).
-derive_colours <- function(df) {
-  df |> mutate(
-    u_g = u - g, # UV slope / Balmer-break region
-    g_r = g - r, # 4000 Å break position: the main redshift signal
-    r_i = r - i, # red continuum slope
-    i_z = i - zmag # near-IR slope
-  )
-}
+# derive_colours() lives in utils_data.R so the prediction app uses the same
+# feature definitions as training.
 
 #' TRUE where x lies outside median ± k·MAD. R's mad() is scaled by 1.4826,
 #' so 5·MAD is about 5σ for Gaussian data but is not pulled by outliers.

@@ -30,7 +30,8 @@
 | AI-008 | 2026-10-18 | Modelling (code) | Claude Code (Claude Opus 5.5) | Wrote training with shared CV folds, T03, T04, learning curves, F08–F13 | Accepted (committed) | `R/05_train.R` |
 | AI-009 | 2026-10-18 | Evaluation (code) | Claude Code (Claude Opus 5.5) | Wrote test evaluation with bootstrap CIs, T05, F14–F17; diagnosed the CV/test gap | Accepted (committed) | `R/06_evaluate.R` |
 | AI-010 | 2026-10-18 | Interpretation (code) | Claude Code (Claude Opus 5.5) | Wrote feature importance, partial dependence and auto-generated hypothesis verdicts | Accepted (committed) | `R/07_interpret.R`, T06, F18–F19 |
-| AI-011 | 2026-10-18 | Report | Claude Code (Claude Opus 5.5) | Drafted report.Rmd with all numbers read from tables; filled README §12 from T04–T06 | Pending owner review | `report/report.Rmd`, README §12 |
+| AI-011 | 2026-10-18 | Report | Claude Code (Claude Opus 5.5) | Drafted report.Rmd with all numbers read from tables; filled README §12 from T04–T06 | Accepted (committed and pushed) | `report/report.Rmd`, README §12 |
+| AI-012 | 2026-10-18 | Inference app (code) | Claude Code (Claude Opus 5.5) | Built a Shiny app: magnitudes in, predicted z out, with training-range checks | Pending owner review | `app/app.R`, `R/utils_predict.R` |
 
 ---
 
@@ -356,3 +357,45 @@
   `report/report.docx`, README §12 and §14
 - **Effect on data:** none (read-only)
 - **Linked decision:** TASK.md §5 (Definition of Done)
+
+### AI-012 — Interactive inference app
+- **Date:** 2026-10-18
+- **Stage:** Inference app (code)
+- **Tool / model:** Claude Code (Claude Opus 5.5)
+- **Input given to AI:** the saved models and `train.csv` / `test.csv`.
+- **Prompt (short):** "I want inference where the user gives input features
+  in an interactive UI and the model predicts after receiving them."
+- **AI output / suggestion:**
+  - Chose Shiny so that everything stays in R (TASK.md C4); Python tools
+    such as Streamlit were ruled out.
+  - Moved `derive_colours()` from `02_inspect_clean.R` to `R/utils_data.R`,
+    so the app computes features exactly as training did. Verified that
+    `sdss_clean.csv` and T02 are byte-identical after the move.
+  - `R/utils_predict.R`: `load_models()`, `training_ranges()` and
+    `predict_redshift()`. Checked that it reproduces the saved test
+    predictions to within 1.2 × 10⁻¹⁵ and flags the same 4 out-of-range test
+    galaxies as AI-009.
+  - `app/app.R`: inputs are the five magnitudes, with real test-set galaxies
+    available as presets. Predictions run on a button press and come from
+    M1–M4, with RF recommended. It flags features outside the training range,
+    marks z < 0 as unphysical, shows a g − r against z context plot and the
+    4000 Å break position, and validates inputs (missing values, values
+    outside 10–30 mag).
+  - Tested in a browser: default inputs; the out-of-range test galaxy
+    `1237661950779588703` (LM and SVR give z < 0, RF gives 0.0903 against a
+    measured 0.0987, matching T05/AI-009); and an empty input, which shows a
+    message instead of crashing. No server errors.
+- **Owner decision:** _pending review_
+- **Resulting code:** `app/app.R`, `R/utils_predict.R`, `R/utils_data.R`;
+  `shiny` added to `renv.lock`
+- **Effect on data:** none (read-only; models are not retrained)
+- **Linked decision:** D-002, D-006
+- **Follow-up (same day):** the owner asked where to find the app command. The
+  AI added a **Quick start** box at the top of the README (restore → run all →
+  app → report). Step 2 needed `run_all.R`, which did not exist yet, so the AI
+  wrote it: it runs 01→07, each in a fresh `Rscript` process, stops at the
+  first failure, and writes `outputs/logs/run_log.txt` and `sessionInfo.txt`.
+  A full run took about 75 s with no errors or warnings. All data, tables and
+  PNG figures were byte-identical to the committed versions. Only the PDFs
+  differed, and a control test showed that cairo writes different bytes when
+  saving the same plot twice, so this is metadata and not a change in results.
