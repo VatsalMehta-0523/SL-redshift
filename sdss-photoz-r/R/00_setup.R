@@ -78,11 +78,22 @@ RAW_COLUMNS <- c(
 )
 
 # objid is a 64-bit integer: as a double it loses its last digits, so it is
-# always read as text.
+# always read as text. Used for the processed CSVs as well.
 RAW_COL_TYPES <- readr::cols(
   objid = readr::col_character(),
   .default = readr::col_double()
 )
+
+# --- SDSS filters (README §3.3) ----------------------------------------------
+
+# Effective wavelengths (Å) and approximate FWHM (Å, Fukugita et al. 1996)
+SDSS_FILTERS <- tibble::tibble(
+  band   = c("u", "g", "r", "i", "z"),
+  lambda = c(3551, 4686, 6166, 7480, 8932),
+  fwhm   = c(599, 1379, 1382, 1535, 1370)
+)
+
+BREAK_REST <- 4000 # rest-frame wavelength of the 4000 Å break (Å)
 
 # --- Shared helpers ----------------------------------------------------------
 

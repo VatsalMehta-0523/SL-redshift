@@ -31,6 +31,18 @@ MODEL_COLOURS <- c(
   M5_xgb      = unname(OKABE_ITO["reddish_purple"])
 )
 
+# Filter colours, ordered blue -> red like the wavelengths (u -> z)
+BAND_COLOURS <- c(
+  u = unname(OKABE_ITO["reddish_purple"]),
+  g = unname(OKABE_ITO["blue"]),
+  r = unname(OKABE_ITO["bluish_green"]),
+  i = unname(OKABE_ITO["orange"]),
+  z = unname(OKABE_ITO["vermillion"])
+)
+
+# Display labels with a true minus sign
+COLOUR_LABELS <- c(u_g = "u − g", g_r = "g − r", r_i = "r − i", i_z = "i − z")
+
 #' ggplot theme for every report figure
 theme_report <- function(base_size = 11) {
   ggplot2::theme_bw(base_size = base_size) +

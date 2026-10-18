@@ -122,7 +122,8 @@ break moves to 4000(1 + z) Å:
 | 0.40 | 5600 Å | entering r |
 
 So as z grows, flux is removed from the g band, and **g − r gets redder
-(larger)**. This is the main physical signal our models should learn, and we
+(larger)**. Our sample only reaches the low end of this table (see T01 and
+F20), so for every galaxy here the break stays inside the g band. This is the main physical signal our models should learn, and we
 test for it in step 7.
 
 ### 3.5 Why the r magnitude helps
@@ -159,7 +160,7 @@ that `Rscript` works in any terminal. Check it with `Rscript --version`.
 | Data download | `httr2` |
 | Modelling | `caret`, `randomForest`, `kernlab` (SVR), `FNN`, `xgboost` (optional) |
 | Evaluation | `boot` |
-| Plotting | `ggplot2`, `patchwork`, `ggcorrplot`, `viridisLite` |
+| Plotting | `ggplot2` (incl. the F05 heatmap and viridis scales), `patchwork` |
 | Interpretation | `pdp`, `vip` |
 | Reporting | `rmarkdown`, `knitr` |
 | Testing / tooling | `testthat`, `renv`, `styler`, `lintr`, `languageserver` (VS Code) |

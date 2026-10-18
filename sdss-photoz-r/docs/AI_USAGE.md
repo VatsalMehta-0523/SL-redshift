@@ -25,6 +25,7 @@
 | AI-003 | 2026-10-18 | Inspection | Claude Code (Claude Opus 5.5) | Checked structure, NA, sentinels, duplicates, ranges, errors, colour outliers; flagged 2 very blue galaxies | Noted | `outputs/logs/02_inspection.txt` |
 | AI-004 | 2026-10-18 | Cleaning | Claude Code (Claude Opus 5.5) | Implemented rules 1–9; suggested flag-only for the 2 blue galaxies | Rejected the suggestion: removed them as planned | `R/02_inspect_clean.R`, `T02_cleaning_log.csv` |
 | AI-005 | 2026-10-18 | Preprocessing | Claude Code (Claude Opus 5.5) | Derived colours, seeded sample to 100, column order | Accepted (scaling deferred to caret, D-010) | `R/02_inspect_clean.R` |
+| AI-006 | 2026-10-18 | EDA (code) | Claude Code (Claude Opus 5.5) | Wrote the EDA script; checked every figure visually; captions generated from the data | Pending owner review | `R/03_eda.R`, T01, F01–F06, F20 |
 
 ---
 
@@ -167,3 +168,29 @@
   differences, values match the raw file, and a re-run gives a
   byte-identical `sdss_clean.csv`.
 - **Linked decision:** D-003, D-006, D-010, D-014
+
+### AI-006 — Exploratory data analysis
+- **Date:** 2026-10-18
+- **Stage:** EDA (code)
+- **Tool / model:** Claude Code (Claude Opus 5.5)
+- **Input given to AI:** `data/processed/sdss_clean.csv` (via the script) and
+  the figure specification in `docs/REPORT_GUIDE.md`.
+- **Prompt (short):** "Write and run R/03_eda.R for T01 and figures F01–F06
+  and F20."
+- **AI output / suggestion:**
+  - Wrote `R/03_eda.R`. It is descriptive only: no model is fitted and nothing
+    is selected from these plots. It produces T01 and F01–F06 and F20 as PNG
+    (300 dpi) and PDF, plus draft captions whose numbers and claims are
+    computed from the data.
+  - Added the SDSS filter constants (`SDSS_FILTERS`, `BREAK_REST`) to
+    `00_setup.R` and the band colours and colour labels to `utils_plot.R`.
+  - Built F05 with plain ggplot2 instead of `ggcorrplot`, which avoids a
+    package dependency.
+  - Viewed every figure and fixed two layout issues: the F20 band labels
+    overlapped the break line, and the F06 title showed one decimal place.
+  - Physics observation for step 7: over this sample's redshift range, the
+    break stays inside the g band (F20).
+- **Owner decision:** _pending review_
+- **Resulting code:** `R/03_eda.R`, `R/00_setup.R`, `R/utils_plot.R`
+- **Effect on data:** none (read-only)
+- **Linked decision:** D-006
