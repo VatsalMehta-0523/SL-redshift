@@ -26,7 +26,8 @@
 | AI-004 | 2026-10-18 | Cleaning | Claude Code (Claude Opus 5.5) | Implemented rules 1–9; suggested flag-only for the 2 blue galaxies | Rejected the suggestion: removed them as planned | `R/02_inspect_clean.R`, `T02_cleaning_log.csv` |
 | AI-005 | 2026-10-18 | Preprocessing | Claude Code (Claude Opus 5.5) | Derived colours, seeded sample to 100, column order | Accepted (scaling deferred to caret, D-010) | `R/02_inspect_clean.R` |
 | AI-006 | 2026-10-18 | EDA (code) | Claude Code (Claude Opus 5.5) | Wrote the EDA script; checked every figure visually; captions generated from the data | Accepted (committed) | `R/03_eda.R`, T01, F01–F06, F20 |
-| AI-007 | 2026-10-18 | Split (code) | Claude Code (Claude Opus 5.5) | Wrote the stratified 80/20 split with leakage assertions and F07 + KS test | Pending owner review | `R/04_split.R`, F07 |
+| AI-007 | 2026-10-18 | Split (code) | Claude Code (Claude Opus 5.5) | Wrote the stratified 80/20 split with leakage assertions and F07 + KS test | Accepted (committed) | `R/04_split.R`, F07 |
+| AI-008 | 2026-10-18 | Modelling (code) | Claude Code (Claude Opus 5.5) | Wrote training with shared CV folds, T03, T04, learning curves, F08–F13 | Pending owner review | `R/05_train.R` |
 
 ---
 
@@ -211,7 +212,45 @@
 - **Observation for the report:** the lowest-redshift galaxy of the sample
   went to the test set, below the training minimum. At that point the models
   have to extrapolate slightly (see the split summary printed by the script).
-- **Owner decision:** _pending review_
+- **Owner decision:** Accepted. The owner committed it.
 - **Resulting code:** `R/04_split.R`
 - **Effect on data:** 100 → 80 train + 20 test rows
 - **Linked decision:** D-009, D-014
+
+### AI-008 — Model training and tuning
+- **Date:** 2026-10-18
+- **Stage:** Modelling (code)
+- **Tool / model:** Claude Code (Claude Opus 5.5)
+- **Input given to AI:** `train.csv` (via the script). `test.csv` is used
+  only to score the learning-curve refits after tuning.
+- **Prompt (short):** "Write and run R/05_train.R (baseline, LM, kNN, RF, SVR
+  with shared repeated-CV folds, T03, T04, F08–F13)."
+- **AI output / suggestion:**
+  - One fixed set of 25 resamples (`createMultiFolds`, 5-fold × 5, seed 42)
+    is passed to every model through `trainControl(index = ...)`, so all
+    models are compared on identical folds.
+  - The baseline uses caret's built-in `"null"` model (predicts the training
+    mean), so it goes through the same folds as the learners.
+  - A custom `summaryFunction` scores CV with the same RMSE, MAE and
+    R² = 1 − SS_res/SS_tot definitions as the test evaluation. caret's
+    default R² is the squared correlation, which is undefined for the
+    constant baseline.
+  - Grids exactly as in D-008/D-010. XGBoost (optional M5) was not added.
+  - Learning curves: 7 sizes × 20 repeats × 5 models = 700 refits with
+    frozen hyperparameters (D-016).
+  - Checked every figure visually. The F11 labels were unreadable on dark
+    cells, so they now switch to white.
+  - Re-running gives identical T03, T04 and learning-curve tables. Runtime is
+    about 40 s.
+- **Observations for the report (no modelling choice was changed):**
+  - SVR's best σ = 0.01 is the smallest value in the grid (a smooth, nearly
+    linear kernel), and RF's best mtry = 5 uses all features. Both sit at the
+    edge of their grids.
+  - In the learning curves (F12), test-set RMSE at n = 80 is clearly higher
+    than CV RMSE for the linear and SVR models. Phase 7's residual plots
+    should show whether one or two test galaxies cause this.
+- **Owner decision:** _pending review_
+- **Resulting code:** `R/05_train.R`; `randomForest` and `kernlab` added
+  to `renv.lock`
+- **Effect on data:** none (models saved to `outputs/models/`, git-ignored)
+- **Linked decision:** D-008, D-010, D-014, D-016

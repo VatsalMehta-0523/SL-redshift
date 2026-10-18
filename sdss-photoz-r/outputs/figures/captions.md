@@ -7,3 +7,9 @@
 - **F06:** r-band magnitude versus spectroscopic redshift with a LOESS fit. More distant galaxies are fainter on average (inverse-square law); the dashed line is the r = 17.77 flux limit of the sample. Pearson r = 0.40.
 - **F20:** Observed wavelength of the 4000 Å break, 4000(1 + z) Å (black line), over the SDSS filter bands (shaded: effective wavelength ± FWHM/2, approximate). The grey band marks this sample (z = 0.025–0.221), where the break lies at 4098–4885 Å, inside the g band. It would leave g only at z ≈ 0.34.
 - **F07:** Spectroscopic redshift of the 80 training and 20 test galaxies (histograms, kernel densities and rugs) after a stratified 80/20 split (seed 42). Two-sample KS test: D = 0.088, p = 0.999, so there is no evidence that the two distributions differ.
+- **F08:** k-NN tuning: mean CV RMSE over 25 resamples (5-fold × 5) versus k, with a ±1 SD band. The chosen k = 8 has the lowest mean RMSE (0.0324).
+- **F09:** Out-of-bag mean squared error of the final random forest (mtry = 5, 80 training galaxies) as trees are added. The curve is flat well before 500 trees, so 500 is enough.
+- **F10:** Random-forest tuning: mean CV RMSE (±1 SD, 25 resamples) versus mtry. The star marks the chosen mtry = 5.
+- **F11:** SVR (RBF kernel) tuning: mean CV RMSE for each (C, σ) pair. The outlined cell is the chosen C = 32, σ = 0.01.
+- **F12:** Learning curves: mean training and test RMSE (±1 SD over 20 random subsets) versus training-set size, for each model with its tuned hyperparameters frozen.
+- **F13:** Distribution of CV RMSE over the same 25 resamples (5-fold × 5) for each model. Lowest mean CV RMSE: M4 SVR (0.0208); baseline 0.0419.
