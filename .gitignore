@@ -1,1 +1,2 @@
-".claude/" 
+# Local Claude Code config (dev-server launcher), not part of the project
+.claude/

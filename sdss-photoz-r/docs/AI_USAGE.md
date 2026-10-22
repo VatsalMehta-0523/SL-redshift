@@ -400,3 +400,52 @@
   PNG figures were byte-identical to the committed versions. Only the PDFs
   differed, and a control test showed that cairo writes different bytes when
   saving the same plot twice, so this is metadata and not a change in results.
+
+### AI-013 — Tests and final check (Phase 10)
+- **Date:** 2026-10-22
+- **Stage:** Tests & final check
+- **Tool / model:** Claude Code (Claude Opus 5.5)
+- **Input given to AI:** the repository at commit `4ae101b`.
+- **Prompt (short):** "Write tests/testthat (metrics, data, leakage), run
+  run_all.R and the tests from a clean state, walk the Definition of Done
+  checklist. Commit locally, don't push."
+- **AI output / suggestion:**
+  - Wrote 4 test files with 78 expectations:
+    - metrics, checked against hand-computed toy values;
+    - data: raw MD5, row count, columns, NA, objid, colours, cuts, and values
+      matching the raw file;
+    - leakage: 80/20, no overlap, every saved model trained only on the 80
+      training galaxies, CV folds inside the training set;
+    - prediction: the app helpers reproduce T05's predictions and flag
+      out-of-range inputs.
+  - **Fresh-clone run.** Cloned the repository into an empty folder (no
+    models, no package library) and ran the README Quick start.
+    `renv::restore()` installed 139 packages, `run_all.R` completed in about
+    51 s, the tests gave 78 pass, 0 fail, 0 warning, 0 skip, and the report
+    rendered to HTML and Word. All 20 data and table files and all 20 PNG
+    figures were identical to the working copy.
+  - Found and fixed a mistake in a command the AI had given the owner earlier:
+    the root `.gitignore` contained `".claude/"` with literal quotes, so it
+    ignored nothing. It now contains `.claude/`.
+- **Definition of Done (TASK.md §5):**
+
+  | Item | Result |
+  |---|---|
+  | `Rscript run_all.R` runs end to end from a clean clone | ✅ fresh clone, about 51 s |
+  | `sdss_clean.csv` has 30–100 rows | ✅ 100 (`test-data.R`) |
+  | Test set never used for training, tuning or feature selection | ✅ `test-leakage.R`: models' training data = the 80 training rows; CV folds inside the training set |
+  | Every required figure exists as PNG (300 dpi) and PDF | ✅ 20/20 (F11b applies only to the optional M5, which was not trained) |
+  | Every table exists as CSV | ✅ T01–T06 and `test_predictions.csv` |
+  | `docs/AI_USAGE.md` documents AI-assisted inspection and cleaning | ✅ AI-003 to AI-005 (and AI-001 to AI-013 overall) |
+  | README Results filled from `outputs/tables/` | ✅ §12; the fresh clone reproduces identical tables |
+  | Report renders to HTML and DOCX | ✅ also in the fresh clone |
+  | `outputs/logs/sessionInfo.txt` records R and package versions | ✅ |
+  | testthat tests pass | ✅ 78/78 |
+
+- **Still open (owner actions, not code):** instructor confirmation of the
+  topic (D-001); rewriting the report prose in the owner's own words;
+  optionally the style checks in CONTRIBUTING §6 (`styler`, `lintr`).
+- **Owner decision:** _pending review_
+- **Resulting code:** `tests/testthat/`, `.gitignore`
+- **Effect on data:** none
+- **Linked decision:** TASK.md §5
