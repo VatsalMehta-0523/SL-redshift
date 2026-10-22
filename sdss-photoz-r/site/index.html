@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Galaxy Redshift Lab</title>
+  <meta name="description" content="Estimate how far away a galaxy is from its brightness in the five SDSS filters, using machine-learning models trained in R on SDSS DR18 data.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23070b17'/%3E%3Cellipse cx='32' cy='32' rx='22' ry='8' fill='none' stroke='%23ffb347' stroke-width='3' transform='rotate(-25 32 32)'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%23f2ecdf'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <canvas id="sky" aria-hidden="true"></canvas>
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="masthead reveal" style="--d:0">
+    <p class="kicker">SDSS DR18 · photometric redshift · supervised learning in R</p>
+    <h1>How far away is <em>this galaxy?</em></h1>
+    <p class="lede">Enter its brightness in the five Sloan filters. Four models trained on real
+      galaxies read the colours, find the redshift, and turn it into a distance.</p>
+  </header>
+
+  <main class="layout">
+    <!-- Observation panel -->
+    <section class="panel observe reveal" style="--d:1" aria-labelledby="observe-title">
+      <div class="panel-head">
+        <h2 id="observe-title">Observation</h2>
+        <span class="tag">de-reddened magnitudes</span>
+      </div>
+      <form id="mag-form" novalidate>
+        <div id="mag-inputs" class="mag-grid"></div>
+        <p id="form-error" class="form-error" role="alert" hidden></p>
+        <div class="actions">
+          <button type="submit" class="btn primary">Estimate distance</button>
+          <button type="button" id="random-btn" class="btn ghost">
+            <span aria-hidden="true">✦</span> Random SDSS galaxy
+          </button>
+        </div>
+      </form>
+      <p class="hint">Smaller magnitude = brighter. Values come from SDSS
+        <code>dered_u</code> … <code>dered_z</code>.</p>
+      <p id="source-note" class="source-note"></p>
+    </section>
+
+    <!-- Result panel -->
+    <section class="panel result reveal" style="--d:2" aria-live="polite" aria-labelledby="result-title">
+      <div class="panel-head">
+        <h2 id="result-title">Estimated redshift</h2>
+        <span class="tag" id="model-tag">random forest</span>
+      </div>
+      <div class="z-readout">
+        <span class="z-label">z =</span>
+        <span id="z-value" class="z-value">—</span>
+      </div>
+      <div id="truth" class="truth" hidden></div>
+      <dl class="facts">
+        <div><dt>Light travel time</dt><dd><span id="lookback">—</span><small>billion years</small></dd></div>
+        <div><dt>Distance today</dt><dd><span id="distance">—</span><small>billion light-years</small></dd></div>
+        <div><dt>Receding at</dt><dd><span id="velocity">—</span><small>km/s (≈ cz)</small></dd></div>
+      </dl>
+      <div id="validity" class="validity"></div>
+    </section>
+
+    <!-- Spectrum strip -->
+    <section class="panel spectrum reveal" style="--d:3" aria-labelledby="spec-title">
+      <div class="panel-head">
+        <h2 id="spec-title">Why colour reveals distance</h2>
+        <span class="tag mono" id="break-tag">4000 Å break</span>
+      </div>
+      <svg id="spectrum-svg" viewBox="0 0 1000 320" role="img"
+           aria-label="Schematic galaxy spectrum with the 4000 Ångström break shifted by the predicted redshift across the SDSS filters"></svg>
+      <p class="caption">Old stars make galaxy light drop sharply below <b>4000 Å</b>. Expansion
+        stretches the light by <b>(1 + z)</b>, sliding that break redward through the
+        <span class="band-g">g</span> filter. Less light in g relative to
+        <span class="band-r">r</span> means a redder <b>g − r</b> colour, which is the main signal the models read.</p>
+    </section>
+
+    <!-- Models -->
+    <section class="panel models reveal" style="--d:4" aria-labelledby="models-title">
+      <div class="panel-head">
+        <h2 id="models-title">Four models, one sky</h2>
+        <span class="tag">tested on 20 unseen galaxies</span>
+      </div>
+      <div id="model-rows" class="model-rows"></div>
+      <p class="caption">Error = test-set RMSE in z. The random forest is recommended: it was the
+        most accurate on unseen galaxies and, because it averages real training galaxies,
+        it can never predict an impossible negative redshift.</p>
+    </section>
+
+    <!-- Context scatter -->
+    <section class="panel context reveal" style="--d:5" aria-labelledby="context-title">
+      <div class="panel-head">
+        <h2 id="context-title">Among the training galaxies</h2>
+        <span class="tag" id="ntrain-tag">80 galaxies</span>
+      </div>
+      <svg id="context-svg" viewBox="0 0 520 330" role="img"
+           aria-label="Scatter plot of g minus r colour against redshift for the training galaxies, with this galaxy highlighted"></svg>
+    </section>
+
+    <!-- How it works -->
+    <section class="steps reveal" style="--d:6" aria-label="How it works">
+      <ol>
+        <li><span class="num">01</span><h3>Measure</h3><p>Brightness through five filters, u g r i z, from ultraviolet to infrared.</p></li>
+        <li><span class="num">02</span><h3>Read colours</h3><p>Differences like g − r trace the spectrum's shape, regardless of how bright the galaxy is.</p></li>
+        <li><span class="num">03</span><h3>Predict</h3><p>Models trained on 80 galaxies with spectroscopic redshifts map colours to z.</p></li>
+        <li><span class="num">04</span><h3>Convert</h3><p>Standard cosmology (H₀ = 70, Ωm = 0.3) turns z into time and distance.</p></li>
+      </ol>
+    </section>
+  </main>
+
+  <footer class="footer reveal" style="--d:7">
+    <p>Data: Sloan Digital Sky Survey DR18. Models trained and evaluated in R (caret: linear regression,
+      k-NN, random forest, SVR); this page reproduces their predictions exactly in your browser.
+      Valid for 0.03 ≲ z ≲ 0.22 and r ≤ 17.77.</p>
+    <p class="mono" id="build-info"></p>
+  </footer>
+
+  <script src="model.js"></script>
+  <script src="predict.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -32,6 +32,7 @@ can justify it and so that agents do not silently change it.
 | D-014 | Random seed = 42 | Accepted |
 | D-015 | Raw data is frozen and committed | Accepted |
 | D-016 | Learning curves evaluated on frozen hyperparameters | Accepted |
+| D-017 | Static web demo: models exported from R, predictions reproduced in the browser | Accepted |
 
 ---
 
@@ -184,6 +185,19 @@ can justify it and so that agents do not silently change it.
 - **Rationale:** These curves show whether more data would help. The test set
   does not influence any modelling choice because the hyperparameters are
   already frozen.
+
+---
+
+### D-017 — Static web demo for free hosting
+- **Status:** Accepted
+- **Date:** 2026-10-22
+- **Context:** The owner wants the project reachable at one free URL, deployable by drag and drop. Free static hosts (Netlify Drop) cannot run R, and free R hosts need a public repo or have tight hour limits.
+- **Decision:** `R/08_export_web.R` exports the trained parameters of M1–M4 (scaling, linear coefficients, k-NN points, all 500 random-forest trees, SVR support vectors) to `site/model.js`. `site/predict.js` re-implements only the *prediction* step in JavaScript; `site/` is a static page that can be dropped on Netlify.
+- **Rationale:** Zero cost, one URL, no server, instant load. All data handling, training, tuning and evaluation stay in R (D-002, TASK.md C4); the page only replays the frozen models.
+- **Safeguard:** `tests/testthat/test-web.R` runs `predict.js` in R's V8 engine and requires its predictions to equal R's for all 20 test galaxies (tolerance 1e-9), the range check to flag the same galaxies, and the cosmology to match R's numerical integration.
+- **Alternatives considered:** Posit Connect Cloud (free, but public repo only), shinyapps.io (25 active hours/month, token-based deploy), shinylive/webR (heavy downloads for caret and randomForest, slow first load).
+- **Consequences:** Re-run `Rscript R/08_export_web.R` (or `run_all.R`) after retraining, then redeploy `site/`. The R Shiny app (`app/`) stays the R-native version.
+- **Supersedes:** none
 
 ---
 

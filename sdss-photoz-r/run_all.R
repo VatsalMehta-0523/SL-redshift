@@ -1,5 +1,5 @@
 # =============================================================================
-# run_all.R — Run the whole pipeline, workflow steps 1–7, in order
+# run_all.R — Run the whole pipeline (workflow steps 1–7) and export the web demo
 # Usage  : Rscript run_all.R   (from the sdss-photoz-r/ folder)
 # Outputs: everything the scripts write, plus outputs/logs/run_log.txt and
 #          outputs/logs/sessionInfo.txt (R and package versions)
@@ -14,7 +14,7 @@ source(here::here("R", "00_setup.R"))
 
 SCRIPTS <- c(
   "01_acquire.R", "02_inspect_clean.R", "03_eda.R", "04_split.R",
-  "05_train.R", "06_evaluate.R", "07_interpret.R"
+  "05_train.R", "06_evaluate.R", "07_interpret.R", "08_export_web.R"
 )
 rscript <- file.path(R.home("bin"), "Rscript")
 

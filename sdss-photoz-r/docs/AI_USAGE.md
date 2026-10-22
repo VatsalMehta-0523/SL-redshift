@@ -33,6 +33,7 @@
 | AI-011 | 2026-10-18 | Report | Claude Code (Claude Opus 5.5) | Drafted report.Rmd with all numbers read from tables; filled README §12 from T04–T06 | Accepted (committed and pushed) | `report/report.Rmd`, README §12 |
 | AI-012 | 2026-10-18 | Inference app (code) | Claude Code (Claude Opus 5.5) | Built a Shiny app: magnitudes in, predicted z out, with training-range checks | Accepted (owner tested, committed and pushed) | `app/app.R`, `R/utils_predict.R` |
 | AI-013 | 2026-10-22 | Tests & final check | Claude Code (Claude Opus 5.5) | Wrote testthat suites (metrics, data, leakage, prediction); fresh-clone run; Definition of Done walk-through | Pending owner review | `tests/testthat/` |
+| AI-014 | 2026-10-22 | Web demo (code) | Claude Code (Claude Opus 5.5) | Exported trained models to a static site for free drag-and-drop hosting; verified browser = R predictions | Pending owner review | `R/08_export_web.R`, `site/`, `tests/testthat/test-web.R` |
 
 ---
 
@@ -449,3 +450,51 @@
 - **Resulting code:** `tests/testthat/`, `.gitignore`
 - **Effect on data:** none
 - **Linked decision:** TASK.md §5
+
+### AI-014 — Static web demo for free hosting
+- **Date:** 2026-10-22
+- **Stage:** Web demo (code)
+- **Tool / model:** Claude Code (Claude Opus 5.5)
+- **Input given to AI:** the trained models, the train/test CSVs and T05.
+- **Prompt (short):** "Deploy for zero rupees at a single URL, drag and drop
+  (e.g. Netlify), with a clean, demo-ready UI, as simple as possible but
+  accurate."
+- **AI output / suggestion:**
+  - Checked the official hosting docs (Oct 2026):
+    - Netlify Drop is free (300 credits a month) and deploys by dragging a
+      folder, but serves static files only, so it cannot run R.
+    - Posit Connect Cloud is free only for public repos (the owner's repo is
+      private).
+    - shinyapps.io allows 25 active hours a month.
+    - Hugging Face no longer offers free R Shiny.
+  - Proposed and built a static demo (D-017). `R/08_export_web.R` exports the
+    models' parameters to `site/model.js`, and `site/predict.js` replays only
+    the prediction step.
+  - **Verification:** `tests/testthat/test-web.R` runs `predict.js` in R's V8
+    engine. The first run caught a real export bug: SVR support vectors were
+    truncated by `[[1]]`, which made the SVR return a constant. It also caught
+    a test-harness rounding issue and a wrong remembered reference value for
+    lookback time. After the fixes, all four models reproduce R's predictions
+    for every test galaxy to within 1e-9, the out-of-range flags match R, and
+    the distances match `integrate()`.
+  - The UI follows the frontend-design skill ("observatory at night" theme):
+    - inputs for the five magnitudes, colour-coded by filter wavelength;
+    - z with a light-travel time and distance from flat ΛCDM (H0 = 70,
+      Ωm = 0.3), and v ≈ cz;
+    - an animated schematic spectrum whose 4000 Å break slides through the
+      filters;
+    - all four models side by side, with RF recommended;
+    - a training-range warning, and negative z flagged as unphysical;
+    - a g − r against z context plot, and a "random SDSS galaxy" button
+      (held-out test galaxies, showing their true z).
+  - Tested in a browser at desktop and phone widths: the problem galaxy
+    (Linear and SVR negative, RF 0.0903), invalid input, the random button,
+    and no console errors. Fixed a hidden-label overlap in the spectrum and
+    small chart text on phones.
+  - Added `08_export_web.R` to `run_all.R`; README Quick start and §11.2;
+    `V8` added to `renv.lock`, and the unused `rsconnect` removed.
+- **Owner decision:** _pending review_
+- **Resulting code:** `R/08_export_web.R`, `site/`,
+  `tests/testthat/test-web.R`, `run_all.R`, README, DECISIONS D-017
+- **Effect on data:** none (read-only)
+- **Linked decision:** D-002, D-017
