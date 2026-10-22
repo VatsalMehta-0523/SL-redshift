@@ -31,7 +31,8 @@
 | AI-009 | 2026-10-18 | Evaluation (code) | Claude Code (Claude Opus 5.5) | Wrote test evaluation with bootstrap CIs, T05, F14–F17; diagnosed the CV/test gap | Accepted (committed) | `R/06_evaluate.R` |
 | AI-010 | 2026-10-18 | Interpretation (code) | Claude Code (Claude Opus 5.5) | Wrote feature importance, partial dependence and auto-generated hypothesis verdicts | Accepted (committed) | `R/07_interpret.R`, T06, F18–F19 |
 | AI-011 | 2026-10-18 | Report | Claude Code (Claude Opus 5.5) | Drafted report.Rmd with all numbers read from tables; filled README §12 from T04–T06 | Accepted (committed and pushed) | `report/report.Rmd`, README §12 |
-| AI-012 | 2026-10-18 | Inference app (code) | Claude Code (Claude Opus 5.5) | Built a Shiny app: magnitudes in, predicted z out, with training-range checks | Pending owner review | `app/app.R`, `R/utils_predict.R` |
+| AI-012 | 2026-10-18 | Inference app (code) | Claude Code (Claude Opus 5.5) | Built a Shiny app: magnitudes in, predicted z out, with training-range checks | Accepted (owner tested, committed and pushed) | `app/app.R`, `R/utils_predict.R` |
+| AI-013 | 2026-10-22 | Tests & final check | Claude Code (Claude Opus 5.5) | Wrote testthat suites (metrics, data, leakage, prediction); fresh-clone run; Definition of Done walk-through | Pending owner review | `tests/testthat/` |
 
 ---
 
@@ -385,7 +386,7 @@
     `1237661950779588703` (LM and SVR give z < 0, RF gives 0.0903 against a
     measured 0.0987, matching T05/AI-009); and an empty input, which shows a
     message instead of crashing. No server errors.
-- **Owner decision:** _pending review_
+- **Owner decision:** Accepted. The owner tested the app in the browser, then committed and pushed it.
 - **Resulting code:** `app/app.R`, `R/utils_predict.R`, `R/utils_data.R`;
   `shiny` added to `renv.lock`
 - **Effect on data:** none (read-only; models are not retrained)
