@@ -5,8 +5,12 @@
 (function () {
   "use strict";
 
-  var P = window.PHOTOZ;
+  var P = null; // the active model set: window.PHOTOZ_MODELS[version]
   var Z = window.PhotoZ;
+  var MANIFEST = window.PHOTOZ_MANIFEST || { latest: "v2", versions: [
+    { id: "v1", title: "Original", n_total: 100, n_train: 80, n_test: 20 },
+    { id: "v2", title: "Extended", n_total: 120, n_train: 100, n_test: 20 }] };
+  var STORE_KEY = "photoz-version";
   var REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var SVGNS = "http://www.w3.org/2000/svg";
 
@@ -97,7 +101,7 @@
   function setSource() {
     var note = $("source-note");
     if (state.preset) {
-      note.innerHTML = "Real SDSS galaxy <b>" + state.preset.objid + "</b> from the held-out test set (the models never saw it).";
+      note.innerHTML = "Real SDSS galaxy <b>" + state.preset.objid + "</b> from the held-out test set (neither model set ever saw it).";
     } else {
       note.textContent = "Custom values.";
     }
@@ -179,7 +183,7 @@
     var negatives = MODEL_IDS.filter(function (id) { return res.preds[id] < 0; });
     if (!res.outside.length) {
       box.className = "validity ok";
-      box.innerHTML = "<strong>Inside the training range.</strong> Every colour and the r magnitude lie within the 80 galaxies the models learned from.";
+      box.innerHTML = "<strong>Inside the training range.</strong> Every colour and the r magnitude lie within the " + P.n_train + " galaxies the models learned from.";
       return;
     }
     var names = res.outside.map(function (f) { return FEATURE_NAMES[f]; }).join(", ");
@@ -191,10 +195,12 @@
 
   /* ---------------- Models ---------------- */
   var metricsById = {};
-  (P.metrics || []).forEach(function (m) { metricsById[m.model] = m; });
 
   function buildModelRows() {
     var host = $("model-rows");
+    host.innerHTML = "";
+    metricsById = {};
+    (P.metrics || []).forEach(function (m) { metricsById[m.model] = m; });
     MODEL_IDS.forEach(function (id) {
       var row = document.createElement("div");
       row.className = "model-row" + (id === P.recommended ? " recommended" : "");
@@ -371,8 +377,12 @@
       transform: "rotate(-90 12 " + (T + 4) + ")", "text-anchor": "end" }, svg);
     yl.textContent = "colour g − r";
 
+    var nNew = 0;
     P.train_points.forEach(function (p) {
-      el("circle", { cx: X(p.redshift), cy: Y(p.g_r), r: 3.2, fill: "#f2ecdf", "fill-opacity": 0.38 }, svg);
+      if (p["new"]) nNew++;
+      el("circle", p["new"]
+        ? { cx: X(p.redshift), cy: Y(p.g_r), r: 3.6, fill: "none", stroke: "#9b7cff", "stroke-width": 1.6 }
+        : { cx: X(p.redshift), cy: Y(p.g_r), r: 3.2, fill: "#f2ecdf", "fill-opacity": 0.38 }, svg);
     });
     el("line", { x1: L, x2: W - R, y1: Y(gr), y2: Y(gr), stroke: "#ffb347", "stroke-opacity": 0.45, "stroke-dasharray": "3 5" }, svg);
     if (state.preset) {
@@ -384,7 +394,134 @@
     var key = el("text", { x: W - R, y: T + 12, "text-anchor": "end", fill: "#a7adbd", "font-family": "Figtree, sans-serif", "font-size": 11 }, svg);
     key.innerHTML = '<tspan fill="#ffb347">●</tspan> this galaxy (predicted)' +
       (state.preset ? '   <tspan fill="#7fd4ff">○</tspan> measured' : "") +
-      '   <tspan fill="#f2ecdf" fill-opacity=".6">●</tspan> training';
+      '   <tspan fill="#f2ecdf" fill-opacity=".6">●</tspan> training' +
+      (nNew ? '   <tspan fill="#9b7cff">○</tspan> ' + nNew + " new in " + P.version : "");
+  }
+
+  /* ---------------- Model versions ----------------
+   * v1 = 100 galaxies (80 train), v2 = 120 galaxies (100 train). Both are
+   * scored on the same 20 test galaxies. site/models/manifest.js (from
+   * R/09_compare_versions.R) describes them; each model file is loaded only
+   * when it is chosen, because the random forests are large. */
+  function versionInfo(id) {
+    return MANIFEST.versions.filter(function (v) { return v.id === id; })[0];
+  }
+
+  function validVersion(id) { return !!id && !!versionInfo(id); }
+
+  function loadVersion(id) {
+    return new Promise(function (resolve, reject) {
+      window.PHOTOZ_MODELS = window.PHOTOZ_MODELS || {};
+      if (window.PHOTOZ_MODELS[id]) return resolve(window.PHOTOZ_MODELS[id]);
+      var tag = document.createElement("script");
+      tag.src = "models/" + id + ".js";
+      tag.onload = function () {
+        if (window.PHOTOZ_MODELS[id]) resolve(window.PHOTOZ_MODELS[id]);
+        else reject(new Error("models/" + id + ".js is empty"));
+      };
+      tag.onerror = function () { reject(new Error("could not load models/" + id + ".js")); };
+      document.head.appendChild(tag);
+    });
+  }
+
+  /* Remember the choice in the URL (shareable: ?model=v1) and in the browser */
+  function remember(id) {
+    try { localStorage.setItem(STORE_KEY, id); } catch (e) { /* private mode: fine */ }
+    try {
+      var url = new URL(location.href);
+      url.searchParams.set("model", id);
+      history.replaceState(null, "", url);
+    } catch (e) { /* file:// or old browser: fine */ }
+  }
+
+  function recalled() {
+    var fromUrl = null, fromStore = null;
+    try { fromUrl = new URL(location.href).searchParams.get("model"); } catch (e) { /* ignore */ }
+    try { fromStore = localStorage.getItem(STORE_KEY); } catch (e) { /* ignore */ }
+    if (validVersion(fromUrl)) return fromUrl;
+    if (validVersion(fromStore)) return fromStore;
+    return null;
+  }
+
+  function buildSwitch() {
+    var seg = $("version-seg");
+    MANIFEST.versions.forEach(function (v) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "seg-btn";
+      b.dataset.version = v.id;
+      b.setAttribute("aria-pressed", "false");
+      b.innerHTML = "<b>" + v.n_total + "</b> galaxies<small>" + v.id + " · " + v.n_train + " train</small>";
+      b.addEventListener("click", function () { useVersion(v.id, true); });
+      seg.appendChild(b);
+    });
+  }
+
+  function fmtDelta(d) { return (d >= 0 ? "+" : "−") + Math.abs(d).toFixed(4); }
+
+  function buildChooser() {
+    var host = $("choices");
+    MANIFEST.versions.forEach(function (v) {
+      var card = document.createElement("button");
+      card.type = "submit";
+      card.value = v.id;
+      card.className = "choice" + (v.id === MANIFEST.latest ? " latest" : "");
+      card.innerHTML =
+        '<span class="choice-id">' + v.id + " · " + v.title + (v.id === MANIFEST.latest ? " · latest" : "") + "</span>" +
+        '<span class="choice-n">' + v.n_total + "<small> galaxies</small></span>" +
+        '<span class="choice-split">' + v.n_train + " train · " + v.n_test + " test</span>" +
+        '<span class="choice-desc">' + (v.description || "") + "</span>" +
+        (v.rf_rmse != null ? '<span class="choice-metric">Random-forest test error <b>±' + v.rf_rmse.toFixed(4) + "</b></span>" : "");
+      host.appendChild(card);
+    });
+    document.querySelectorAll(".js-ntest").forEach(function (n) { n.textContent = MANIFEST.versions[0].n_test; });
+    var c = MANIFEST.comparison;
+    if (c) {
+      $("chooser-note").innerHTML = "Adding the " + c.n_new + " new galaxies changed the random-forest test error by <b>" +
+        fmtDelta(c.rf_delta) + "</b> (paired 95% CI " + fmtDelta(c.rf_delta_lo) + " to " + fmtDelta(c.rf_delta_hi) +
+        "). " + c.summary;
+    }
+    var dlg = $("chooser");
+    dlg.addEventListener("close", function () {
+      if (validVersion(dlg.returnValue)) useVersion(dlg.returnValue, true);
+    });
+    $("version-about").addEventListener("click", openChooser);
+  }
+
+  function openChooser() {
+    var dlg = $("chooser");
+    dlg.returnValue = "";
+    if (typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", "");
+  }
+
+  var started = false;
+  function useVersion(id, rerun) {
+    remember(id);
+    document.querySelectorAll(".seg-btn").forEach(function (b) {
+      var on = b.dataset.version === id;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    return loadVersion(id).then(function (model) {
+      P = model;
+      window.PHOTOZ = P; // same global name as before, for anyone scripting the page
+      buildModelRows();
+      $("ntrain-tag").textContent = P.n_train + " galaxies";
+      $("steps-ntrain").textContent = P.n_train;
+      $("test-tag").textContent = "tested on " + P.n_test + " unseen galaxies";
+      $("model-tag").textContent = "random forest · " + P.version;
+      $("build-info").textContent = P.version_label + " · models exported from R on " + P.generated +
+        " · trained on " + P.n_train + " SDSS galaxies";
+      if (!started) { start(); return; }
+      // The test galaxies are the same in both versions, so keep the current one
+      if (state.preset) {
+        state.preset = P.presets.filter(function (g) { return g.objid === state.preset.objid; })[0] || null;
+      }
+      if (rerun) run(true);
+    }).catch(function (err) {
+      $("form-error").hidden = false;
+      $("form-error").textContent = "Could not load the " + id + " models (" + err.message + ").";
+    });
   }
 
   /* ---------------- Wiring ---------------- */
@@ -393,14 +530,9 @@
     return list[Math.floor(Math.random() * list.length)];
   }
 
-  function init() {
-    sky();
-    buildInputs();
-    buildModelRows();
+  function start() {
+    started = true;
     buildSpectrum();
-    $("ntrain-tag").textContent = P.n_train + " galaxies";
-    $("build-info").textContent = "Models exported from R on " + P.generated + " · trained on " + P.n_train + " SDSS galaxies";
-
     // Start with a real, typical test galaxy (median redshift of the test set)
     state.preset = P.presets[Math.floor(P.presets.length / 2)];
     fillMags(state.preset);
@@ -417,7 +549,18 @@
     });
   }
 
-  if (!P || !Z) {
+  function init() {
+    sky();
+    buildInputs();
+    buildSwitch();
+    buildChooser();
+    var chosen = recalled();
+    // First visit: load the latest models behind the chooser, then ask
+    useVersion(chosen || MANIFEST.latest, false);
+    if (!chosen) openChooser();
+  }
+
+  if (!Z) {
     document.body.insertAdjacentHTML("afterbegin", '<p style="color:#ff7a59;padding:16px">Model files failed to load.</p>');
     return;
   }

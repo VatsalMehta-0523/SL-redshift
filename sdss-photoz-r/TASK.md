@@ -92,7 +92,7 @@ Project using Experimental or Publicly Available Physics Data.
 | 5. Train models | `R/05_train.R` | `outputs/models/*.rds`, `T03_hyperparameters.csv`, `T04_cv_metrics.csv`, training figures F08–F13 |
 | 6. Evaluate | `R/06_evaluate.R` | `T05_test_metrics.csv` (with 95% bootstrap CI), F14–F17 |
 | 7. Interpret physics | `R/07_interpret.R` | `T06_feature_importance.csv`, F18–F19, physics discussion in report |
-| Report support | `report/report.Rmd` | `report/report.html`, `report/report.docx` |
+| Report support | `report/report.Rmd`, `report/render_reports.R` | `report/report_v1_n100.html/.docx`, `report/report_v2_n120.html/.docx` (D-018) |
 
 ---
 
@@ -124,3 +124,4 @@ The project is complete only when **all** of these are true:
 | 30–100: is a larger SDSS pull allowed? | The **analysis** dataset is exactly 100. A slightly larger raw pull (120) is allowed only as a cleaning buffer and is then sampled down to 100 with a fixed seed | D-003 |
 | What counts as "using AI tools"? | AI assistants (e.g. Claude) used to inspect structure, flag anomalies, propose cleaning rules, and write/check code, with every use logged | D-012 |
 | How many models? | "One or more" → baseline + 4 core learners, to give a meaningful comparison | D-008 |
+| Owner asked to train on 20 more galaxies (120 total) | **v1** (100 galaxies) stays the brief-compliant analysis; **v2** (v1 + 20 new galaxies, added to training only, same 20-galaxy test set) is an owner-approved extension beyond C1. Paths in §4–§5 refer to `data/processed/<version>/` and `outputs/<version>/`; C1 and the Definition of Done apply to v1 | D-018 |

@@ -33,6 +33,7 @@ can justify it and so that agents do not silently change it.
 | D-015 | Raw data is frozen and committed | Accepted |
 | D-016 | Learning curves evaluated on frozen hyperparameters | Accepted |
 | D-017 | Static web demo: models exported from R, predictions reproduced in the browser | Accepted |
+| D-018 | Second dataset version v2: 100 + 20 new galaxies, new galaxies train only, same test set | Accepted (owner request) |
 
 ---
 
@@ -198,6 +199,58 @@ can justify it and so that agents do not silently change it.
 - **Alternatives considered:** Posit Connect Cloud (free, but public repo only), shinyapps.io (25 active hours/month, token-based deploy), shinylive/webR (heavy downloads for caret and randomForest, slow first load).
 - **Consequences:** Re-run `Rscript R/08_export_web.R` (or `run_all.R`) after retraining, then redeploy `site/`. The R Shiny app (`app/`) stays the R-native version.
 - **Supersedes:** none
+
+### D-018 — Second dataset version (v2): train on 20 more galaxies
+- **Status:** Accepted (owner request, 2026-11-26)
+- **Date:** 2026-11-26
+- **Context:** The owner asked to train on 20 more data points and to let the
+  deployed web demo ask which model to look at: the one trained on the
+  100-galaxy dataset or a new one on 120. TASK.md C1 / AGENTS.md R2 limit the
+  analysis dataset to 30–100 rows, so a 120-galaxy dataset exceeds the brief.
+  AGENTS.md §1 lets the owner override with a logged decision; this entry is
+  that log.
+- **Decision:**
+  1. **Keep v1 unchanged** as the brief-compliant analysis (100 galaxies,
+     80/20). All its outputs move to `data/processed/v1/` and `outputs/v1/`;
+     re-running it reproduces every table byte for byte.
+  2. **Acquire 20 new galaxies** with a second frozen SkyServer pull (batch 2,
+     `data/sql/sdss_query_batch2.sql`): the identical query and cuts (D-005)
+     with `TOP 30` as a cleaning buffer, frozen with its own MD5 (D-015).
+  3. **Clean batch 2 with exactly the same rules** (`R/utils_clean.R`). The
+     colour-outlier rule uses the **frozen batch-1 median and MAD**, so the
+     threshold cannot move and no v1 galaxy can be dropped. Galaxies already
+     in batch 1 are removed. 20 survivors are drawn with `SEED`, without
+     looking at their redshift.
+  4. **v2 = v1's 100 + the 20 new galaxies.** The new galaxies go into the
+     **training set only**; the test set is **exactly v1's 20 galaxies**. So
+     v2 is 100 train / 20 test, and v1 and v2 form a paired comparison.
+  5. Re-tune every model on v2's training set with the same grids and CV
+     scheme (D-010), and evaluate as before (D-011).
+  6. `R/09_compare_versions.R` compares the versions on the shared test set
+     with a **paired bootstrap** of the change in RMSE and σ_NMAD (T07),
+     records hyperparameter drift (T08), and plots F21 and F22.
+  7. The web demo (`site/`) and the Shiny app let the user choose v1 or v2;
+     the default is the latest, v2.
+- **Rationale:** Re-splitting 120 galaxies would draw a new 24-galaxy test
+  set. With n ≈ 20 the test-set draw dominates the RMSE (T05 CIs span about
+  ±0.015), so any v1/v2 difference would mostly be a different test sample.
+  Holding the test set fixed isolates the one thing that changed, the amount
+  of training data, and the paired bootstrap cancels the shared
+  galaxy-to-galaxy scatter. A fresh, independent pull (rather than the 18
+  unused batch-1 galaxies) gives genuinely new data from the same population;
+  KS tests confirm batch 2 matches batch 1 (outputs/v2/logs/02_inspection.txt).
+- **Alternatives considered:** re-split all 120 galaxies 96/24 (rejected: not
+  paired, and it changes the benchmark); use the 18 unused batch-1 galaxies
+  plus 2 new ones (rejected: mixes sources for no benefit); recompute the MAD
+  threshold on batch 1 + batch 2 (rejected: could silently remove v1
+  galaxies).
+- **Consequences:** v2 exceeds the brief's 100-observation limit. **v1 remains
+  the version to submit against the brief**, and v2 is a documented
+  extension. Paths are now per version (`PHOTOZ_VERSION`, default `v2`);
+  `run_all.R` runs v1, v2 and the comparison. Reports:
+  `report/report_v1_n100.*` and `report/report_v2_n120.*`.
+- **Supersedes:** extends D-003 (size) and D-009 (split) for v2 only; v1
+  still follows them.
 
 ---
 

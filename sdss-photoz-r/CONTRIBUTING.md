@@ -92,7 +92,7 @@ Refs: D-005, TASK step 2
    the owner's approval.
 2. Add an ID and colour to `MODEL_IDS` / `MODEL_COLOURS` in `R/utils_plot.R`.
 3. Train it in `R/05_train.R` with the **shared CV folds**, and save it to
-   `outputs/models/<id>.rds`.
+   `outputs/<version>/models/<id>.rds` (for each dataset version, D-018).
 4. Add a tuning figure if it has hyperparameters.
 5. Make sure `06_evaluate.R` picks it up automatically. It loops over the
    saved models.
@@ -102,7 +102,7 @@ Refs: D-005, TASK step 2
 1. Assign the next free ID (`F21`, …) in `docs/REPORT_GUIDE.md`, with its
    purpose, content, size and report section.
 2. Build it with `theme_report()` and save it with `save_fig()`.
-3. Append a draft caption to `outputs/figures/captions.md`.
+3. Append a draft caption to `outputs/<version>/figures/captions.md` (via `add_caption()`).
 
 ### 5.3 Changing cleaning rules
 1. Never edit `data/raw/`.
@@ -141,7 +141,7 @@ Rscript -e "rmarkdown::render('report/report.Rmd', output_format = 'all')"
 | Features / models / metrics | README §8–10, `DECISIONS.md`, `docs/REPORT_GUIDE.md` |
 | Figures / tables | `docs/REPORT_GUIDE.md`, captions.md |
 | Packages | `renv::install()` then `renv::snapshot()`, README §4 |
-| Results (after re-run) | README §12 from `outputs/tables/T05_test_metrics.csv` |
+| Results (after re-run) | README §12 from `outputs/<version>/tables/T05_test_metrics.csv` and `outputs/comparison/tables/T07_version_comparison.csv` |
 
 ---
 

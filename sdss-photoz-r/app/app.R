@@ -13,10 +13,27 @@ library(shiny)
 source(here::here("R", "00_setup.R"))
 source(here::here("R", "utils_predict.R"))
 
-train <- read_csv(PATHS$train, col_types = RAW_COL_TYPES, progress = FALSE)
-test <- read_csv(PATHS$test, col_types = RAW_COL_TYPES, progress = FALSE)
-models <- load_models()
-ranges <- training_ranges(train)
+# Both model sets are loaded once at start-up, so switching is instant.
+# v1: 100 galaxies (80 train); v2: 120 galaxies (100 train). Same 20 test galaxies.
+read_set <- \(version, which) {
+  read_csv(version_paths(version)[[which]], col_types = RAW_COL_TYPES, progress = FALSE)
+}
+available <- names(VERSIONS)[map_lgl(names(VERSIONS), \(v) {
+  all(file.exists(file.path(version_paths(v)$models, paste0(PREDICT_MODELS, ".rds"))))
+})]
+if (length(available) == 0) stop("No trained models found. Run `Rscript run_all.R` first.")
+SETS <- map(set_names(available), \(v) {
+  train <- read_set(v, "train")
+  list(train = train, models = load_models(version = v), ranges = training_ranges(train),
+       metrics = read_csv(file.path(version_paths(v)$tables, "T05_test_metrics.csv"),
+                          show_col_types = FALSE))
+})
+DEFAULT_SET <- if (LATEST_VERSION %in% available) LATEST_VERSION else available[1]
+test <- read_set(DEFAULT_SET, "test") # identical in every version (D-018)
+train <- SETS[[DEFAULT_SET]]$train # only for the default input values
+set_choices <- set_names(available, map_chr(available, \(v) {
+  glue("{VERSIONS[[v]]$label} ({VERSIONS[[v]]$n_train} train)")
+}))
 
 MAG_INPUTS <- c(u = "u", g = "g", r = "r", i = "i", z = "zmag")
 G_BAND <- SDSS_FILTERS[SDSS_FILTERS$band == "g", ]
@@ -57,17 +74,14 @@ ui <- fluidPage(
       p("Enter the five ", strong("de-reddened"), " SDSS magnitudes of a galaxy",
         " (", code("dered_u"), " … ", code("dered_z"), ") and press ",
         strong("Predict"), "."),
+      radioButtons("version", "Model set (which trained models to use)",
+                   choices = set_choices, selected = DEFAULT_SET),
       selectInput("preset", "Start from", choices = preset_choices),
       mag_input("u"), mag_input("g"), mag_input("r"), mag_input("i"), mag_input("z"),
       actionButton("predict", "Predict redshift", class = "btn-success btn-lg",
                    width = "100%"),
       hr(),
-      helpText(glue(
-        "Models trained on {nrow(train)} SDSS DR18 galaxies with ",
-        "{sprintf('%.3f', ranges$min[ranges$feature == 'redshift'])} ≤ z ≤ ",
-        "{sprintf('%.3f', ranges$max[ranges$feature == 'redshift'])} and r ≤ 17.77. ",
-        "Predictions outside this range are not reliable."
-      ))
+      uiOutput("set_help")
     ),
     mainPanel(
       width = 8,
@@ -87,6 +101,21 @@ ui <- fluidPage(
 
 server <- function(input, output, session) {
 
+  # The chosen model set: models, training data and ranges of that version
+  current <- reactive(SETS[[input$version]])
+
+  output$set_help <- renderUI({
+    s <- current()
+    rz <- s$ranges[s$ranges$feature == "redshift", ]
+    rf <- s$metrics[s$metrics$model == RECOMMENDED_MODEL, ]
+    helpText(glue(
+      "{VERSIONS[[input$version]]$label}: models trained on {nrow(s$train)} SDSS DR18 ",
+      "galaxies with {sprintf('%.3f', rz$min)} ≤ z ≤ {sprintf('%.3f', rz$max)} and r ≤ 17.77 ",
+      "(random-forest test RMSE {sprintf('%.4f', rf$rmse)}, scored on the same {nrow(test)} ",
+      "test galaxies in every version). Predictions outside this range are not reliable."
+    ))
+  })
+
   # Fill the inputs from a test-set galaxy
   observeEvent(input$preset, {
     if (input$preset == "custom") return()
@@ -96,14 +125,15 @@ server <- function(input, output, session) {
     }
   })
 
-  # Predict only when the button is pressed
-  prediction <- eventReactive(input$predict, {
+  # Predict when the button is pressed or the model set changes
+  prediction <- eventReactive(list(input$predict, input$version), {
     mags <- map_dbl(names(MAG_INPUTS), \(b) input[[paste0("mag_", b)]])
     validate(need(all(!is.na(mags)), "Please fill in all five magnitudes."))
     validate(need(all(mags >= 10 & mags <= 30),
                   "Magnitudes must be between 10 and 30 (physically plausible range)."))
     new <- as_tibble(as.list(set_names(mags, MAG_INPUTS)))
-    res <- predict_redshift(new, models, ranges)
+    res <- predict_redshift(new, current()$models, current()$ranges)
+    res$version <- input$version
     # A preset is only "known" while its magnitudes are unchanged
     res$z_spec <- NA_real_
     if (input$preset != "custom") {
@@ -120,7 +150,7 @@ server <- function(input, output, session) {
     lambda_break <- BREAK_REST * (1 + z)
     in_g <- lambda_break >= G_EDGES[1] && lambda_break <= G_EDGES[2]
     div(class = "result-box",
-      div(glue("Predicted redshift ({MODEL_LABELS[[RECOMMENDED_MODEL]]}, recommended)")),
+      div(glue("Predicted redshift ({MODEL_LABELS[[RECOMMENDED_MODEL]]}, recommended; {VERSIONS[[res$version]]$label})")),
       div(class = "result-z", sprintf("z = %.4f", z)),
       if (!is.na(res$z_spec)) {
         div(sprintf("Measured (spectroscopic) z = %.4f · error Δz/(1+z) = %+.4f",
@@ -162,7 +192,7 @@ server <- function(input, output, session) {
 
   output$colour_table <- renderTable({
     res <- prediction()
-    feature_ranges <- filter(ranges, feature %in% FEATURES)
+    feature_ranges <- filter(SETS[[res$version]]$ranges, feature %in% FEATURES)
     tibble::tibble(
       Feature = unname(COLOUR_LABELS_ALL[feature_ranges$feature]),
       Value = map_dbl(feature_ranges$feature, \(f) res[[f]]),
@@ -177,12 +207,12 @@ server <- function(input, output, session) {
       model = PREDICT_MODELS,
       z = map_dbl(PREDICT_MODELS, \(id) res[[paste0("z_phot_", id)]])
     )
-    p <- ggplot(train, aes(redshift, g_r))
+    p <- ggplot(SETS[[res$version]]$train, aes(redshift, g_r))
     if (any(preds$z < 0)) {
       # Redshifts below zero are unphysical for these receding galaxies
       p <- p + annotate("rect", xmin = -Inf, xmax = 0, ymin = -Inf, ymax = Inf,
                         fill = OKABE_ITO["vermillion"], alpha = 0.08) +
-        annotate("text", x = min(preds$z), y = max(train$g_r), label = "z < 0\nunphysical",
+        annotate("text", x = min(preds$z), y = max(SETS[[res$version]]$train$g_r), label = "z < 0\nunphysical",
                  hjust = 0, vjust = 1, size = 3.8, colour = OKABE_ITO["vermillion"])
     }
     p <- p +
@@ -191,7 +221,7 @@ server <- function(input, output, session) {
       geom_point(data = preds, aes(z, res$g_r, colour = model), size = 5) +
       scale_colour_manual(values = MODEL_COLOURS, labels = MODEL_LABELS, name = "Prediction") +
       labs(x = "Redshift  z", y = "Colour  g − r  (mag)",
-           subtitle = "Grey: training galaxies (spectroscopic z). Dashed line: this galaxy's g − r.") +
+           subtitle = glue("Grey: the {nrow(SETS[[res$version]]$train)} training galaxies of {res$version} (spectroscopic z). Dashed line: this galaxy's g − r.")) +
       theme_report(base_size = 13) +
       theme(legend.position = "right")
     if (!is.na(res$z_spec)) {

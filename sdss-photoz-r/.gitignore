@@ -12,7 +12,7 @@ renv/staging/
 renv/cellar/
 
 # Large / regenerable artefacts
-outputs/models/*.rds
+outputs/*/models/*.rds
 
 # Report build intermediates
 report/*_files/

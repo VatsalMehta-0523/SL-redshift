@@ -1,0 +1,9 @@
+|model       |label            |parameter |search_grid                |selected_v1 |selected_v2 |changed |
+|:-----------|:----------------|:---------|:--------------------------|:-----------|:-----------|:-------|
+|M0_baseline |M0 Baseline      |(none)    |predicts the training mean |—           |—           |FALSE   |
+|M1_lm       |M1 Linear        |(none)    |ordinary least squares     |—           |—           |FALSE   |
+|M2_knn      |M2 k-NN          |k         |1, 2, …, 20                |8           |11          |TRUE    |
+|M3_rf       |M3 Random Forest |mtry      |1, 2, …, 5                 |5           |5           |FALSE   |
+|M3_rf       |M3 Random Forest |ntree     |fixed                      |500         |500         |FALSE   |
+|M4_svr      |M4 SVR           |C         |2^-2, 2^-1, …, 2^6         |32          |32          |FALSE   |
+|M4_svr      |M4 SVR           |sigma     |0.01, 0.05, 0.1, 0.5, 1    |0.01        |0.01        |FALSE   |

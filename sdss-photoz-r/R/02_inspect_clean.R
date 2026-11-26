@@ -1,10 +1,10 @@
 # =============================================================================
 # 02_inspect_clean.R — Workflow steps 2–3: inspect, clean, preprocess, import
-# Inputs : data/raw/sdss_raw.csv
-# Outputs: data/processed/sdss_clean.csv (exactly 100 rows),
-#          outputs/tables/T02_cleaning_log.csv/.md,
-#          outputs/logs/02_inspection.txt (inspection evidence)
-# Brief  : TASK.md §4, steps 2–3; decisions D-003, D-006, D-012, D-014
+# Inputs : data/raw/sdss_raw.csv (batch 1)
+# Outputs: data/processed/v1/sdss_clean.csv (exactly 100 rows),
+#          outputs/v1/tables/T02_cleaning_log.csv/.md,
+#          outputs/v1/logs/02_inspection.txt (inspection evidence)
+# Brief  : TASK.md §4, steps 2–3; decisions D-003, D-006, D-012, D-014, D-018
 # =============================================================================
 #
 # The cleaning rules come from README §6. They were proposed with an AI
@@ -17,33 +17,13 @@
 # physical-range check 0 < z < 1.
 
 source(here::here("R", "00_setup.R"))
+source(here::here("R", "utils_clean.R")) # MAGNITUDES, COLOURS, add_log(), mad_outlier(), ...
 
-MAGNITUDES <- c("u", "g", "r", "i", "zmag")
-ERRORS <- c("err_u", "err_g", "err_r", "err_i", "err_z")
-COLOURS <- c("u_g", "g_r", "r_i", "i_z")
-
-MAG_RANGE <- c(10, 30) # physically plausible apparent magnitudes
-SENTINEL <- 9999 # SDSS marks missing photometry with -9999
-MAD_K <- 5 # colour-outlier threshold: median ± 5·MAD
-
-# --- Helpers -----------------------------------------------------------------
-
-#' Append one rule to the cleaning log.
-add_log <- function(log, step, rule, rows_before, rows_after, reason, details = "") {
-  bind_rows(log, tibble::tibble(
-    step = step, rule = rule,
-    rows_before = rows_before, rows_after = rows_after,
-    rows_removed = rows_before - rows_after,
-    reason = reason, details = details
-  ))
-}
-
-# derive_colours() lives in utils_data.R so the prediction app uses the same
-# feature definitions as training.
-
-#' TRUE where x lies outside median ± k·MAD. R's mad() is scaled by 1.4826,
-#' so 5·MAD is about 5σ for Gaussian data but is not pulled by outliers.
-mad_outlier <- function(x, k = MAD_K) abs(x - median(x)) > k * mad(x)
+# This script always builds the v1 dataset from batch 1. Version v2 re-uses
+# v1's 100 galaxies and adds 20 from batch 2 in 02b_extend_v2.R (D-018).
+PATHS <- version_paths("v1")
+for (dir in PATHS[c("processed", "tables", "logs")]) dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+N_TARGET <- VERSIONS$v1$n_total
 
 # --- Step 1: read with explicit column types ---------------------------------
 
@@ -174,21 +154,18 @@ log <- add_log(
 
 stopifnot(
   "Analysis dataset must have 30–100 rows (TASK.md C1)" =
-    nrow(df) >= N_MIN && nrow(df) <= N_MAX,
+    nrow(df) >= N_MIN && nrow(df) <= N_MAX_BRIEF,
   "Clean data must have no NA" = !anyNA(df),
   "objid must be unique" = !anyDuplicated(df$objid)
 )
 
-clean <- df |>
-  arrange(objid) |>
-  select(objid, all_of(MAGNITUDES), all_of(COLOURS), all_of(ERRORS),
-         redshift, redshift_err, ra, dec)
+clean <- order_clean_columns(df)
 write_csv(clean, PATHS$clean)
 
 log <- add_log(
   log, 9, "Assert 30 ≤ n ≤ 100, no NA, unique objid; write sdss_clean.csv",
   nrow(df), nrow(clean), "Hard constraint C1",
-  "data/processed/sdss_clean.csv"
+  "data/processed/v1/sdss_clean.csv"
 )
 save_table(log, "T02", "cleaning_log")
 

@@ -5,8 +5,17 @@ produce, and where each one goes in the written report. Agents must create
 **all** items marked *Required*.
 
 Conventions: `ggplot2` + `theme_report()`, Okabe-Ito palette, fixed model
-colours. Every figure is saved as `outputs/figures/F{nn}_{name}.png` (300 dpi)
-**and** `.pdf`. Tables are saved as `outputs/tables/T{nn}_{name}.csv` plus `.md`.
+colours. Every figure is saved as `outputs/<version>/figures/F{nn}_{name}.png` (300 dpi)
+**and** `.pdf`. Tables are saved as `outputs/<version>/tables/T{nn}_{name}.csv` plus `.md`.
+F01–F20 and T01–T06 exist for each dataset version (v1, v2; D-018). The
+v1-vs-v2 comparison lives in `outputs/comparison/`:
+
+| ID | File | Content |
+|---|---|---|
+| F21 | `F21_version_comparison` | Test RMSE per version with CIs, and the paired change v2 − v1 with its 95% paired-bootstrap CI |
+| F22 | `F22_learning_curves_v1_v2` | Test RMSE vs training-set size for both versions on the shared test set |
+| T07 | `T07_version_comparison` | RMSE, σ_NMAD, R², bias and CV RMSE of both versions; paired Δ with CI and P(v2 better) |
+| T08 | `T08_hyperparameter_drift` | Tuned hyperparameters in v1 and v2 |
 
 ---
 

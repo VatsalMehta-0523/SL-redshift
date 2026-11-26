@@ -1,9 +1,10 @@
 # =============================================================================
 # 04_split.R — Workflow step 4: split into training and testing sets
-# Inputs : data/processed/sdss_clean.csv
-# Outputs: data/processed/train.csv (80), data/processed/test.csv (20),
-#          outputs/figures/F07_train_test_split (.png + .pdf), captions.md
-# Brief  : TASK.md §4, step 4; decisions D-009, D-014
+# Inputs : data/processed/<version>/sdss_clean.csv
+#          (v2 also reads data/processed/v1/test.csv: the shared test set)
+# Outputs: data/processed/<version>/train.csv, test.csv (v1: 80/20, v2: 100/20),
+#          outputs/<version>/figures/F07_train_test_split (.png + .pdf), captions.md
+# Brief  : TASK.md §4, step 4; decisions D-009, D-014, D-018
 # =============================================================================
 #
 # From here on the test set is held out (AGENTS.md R5): it is read again only
@@ -14,18 +15,33 @@ source(here::here("R", "00_setup.R"))
 
 clean <- read_csv(PATHS$clean, col_types = RAW_COL_TYPES, progress = FALSE)
 
-# --- Stratified 80/20 split (D-009) ------------------------------------------
-
-# createDataPartition() bins a numeric target into quantile groups and samples
-# 80% within each group, so train and test both cover the full redshift range.
-set.seed(SEED)
-train_idx <- caret::createDataPartition(clean$redshift, p = 0.8, list = FALSE)[, 1]
-
-train <- clean[train_idx, ]
-test <- clean[-train_idx, ]
+if (VERSION$id == "v1") {
+  # --- v1: stratified 80/20 split (D-009) -------------------------------------
+  # createDataPartition() bins a numeric target into quantile groups and
+  # samples 80% within each group, so train and test both cover the full
+  # redshift range.
+  set.seed(SEED)
+  train_idx <- caret::createDataPartition(clean$redshift, p = 0.8, list = FALSE)[, 1]
+  train <- clean[train_idx, ]
+  test <- clean[-train_idx, ]
+  split_note <- glue("stratified 80/20 split (seed {SEED})")
+} else {
+  # --- v2: same 20 test galaxies as v1; the 20 new galaxies train (D-018) -----
+  # Keeping the test set fixed makes v1 and v2 a paired comparison: any change
+  # in test error comes from the extra training data, not from a new draw of
+  # 20 test galaxies (which, with n = 20, would dominate the difference).
+  base_test <- read_csv(version_paths(VERSION$base)$test, col_types = RAW_COL_TYPES,
+                        progress = FALSE)
+  test <- filter(clean, objid %in% base_test$objid)
+  train <- filter(clean, !objid %in% base_test$objid)
+  stopifnot("v2 test set must equal the v1 test set" =
+              setequal(test$objid, base_test$objid))
+  split_note <- glue("split that keeps v1's {nrow(test)} test galaxies and trains on all others")
+}
 
 stopifnot(
-  "Split must be 80 train / 20 test (D-009)" = nrow(train) == 80 && nrow(test) == 20,
+  "Train/test sizes must match the version (D-009, D-018)" =
+    nrow(train) == VERSION$n_train && nrow(test) == VERSION$n_test,
   "No galaxy may be in both sets" = length(intersect(train$objid, test$objid)) == 0,
   "Every galaxy must be in one set" = nrow(train) + nrow(test) == nrow(clean)
 )
@@ -64,14 +80,14 @@ save_fig(f07, "F07", "train_test_split", 6.5, 4.5)
 
 add_caption("F07", glue(
   "Spectroscopic redshift of the {nrow(train)} training and {nrow(test)} test ",
-  "galaxies (histograms, kernel densities and rugs) after a stratified 80/20 ",
-  "split (seed {SEED}). Two-sample KS test: D = {sprintf('%.3f', ks$statistic)}, ",
+  "galaxies (histograms, kernel densities and rugs) after a {split_note}. ",
+  "Two-sample KS test: D = {sprintf('%.3f', ks$statistic)}, ",
   "p = {sprintf('%.3f', ks$p.value)}",
   "{if (ks$p.value > 0.05) ', so there is no evidence that the two distributions differ' else ''}."
 ))
 
 message(glue(
-  "Split: {nrow(train)} train / {nrow(test)} test (seed {SEED})\n",
+  "Split ({VERSION$id}): {nrow(train)} train / {nrow(test)} test ({split_note})\n",
   "  train z: {round(min(train$redshift), 3)} to {round(max(train$redshift), 3)}\n",
   "  test  z: {round(min(test$redshift), 3)} to {round(max(test$redshift), 3)}\n",
   "  KS test: D = {sprintf('%.3f', ks$statistic)}, p = {sprintf('%.3f', ks$p.value)}",

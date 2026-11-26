@@ -5,6 +5,8 @@
 #          outputs/tables/test_predictions.csv,
 #          outputs/figures/F14–F17 (.png + .pdf), captions.md
 # Brief  : TASK.md §4, step 6; decisions D-011, D-014
+# Paths  : relative to the active dataset version (PHOTOZ_VERSION, D-018):
+#          data/processed/<version>/ and outputs/<version>/
 # =============================================================================
 #
 # The models are used exactly as saved by 05_train.R. Nothing here feeds back

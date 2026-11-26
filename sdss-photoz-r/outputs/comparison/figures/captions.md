@@ -1,0 +1,3 @@
+# Figure captions (drafts)
+- **F21:** Left: test RMSE of each learner for v1 (80 training galaxies) and v2 (100 training galaxies, 20 of them new), with 95% bootstrap CIs; the dashed line is the v1 mean-prediction baseline. Right: paired change in test RMSE (v2 − v1) with a 95% paired-bootstrap CI (2000 resamples of the same 20 test galaxies) and the bootstrap probability that v2 is better. 2 of 4 learners improve; for 1 the whole CI lies below zero.
+- **F22:** Test RMSE versus training-set size for each learner (mean ± 1 SD over 20 random subsets, hyperparameters frozen at each version's tuned values, D-016). v1 subsets are drawn from its 80 training galaxies, v2 subsets from its 100; both are scored on the same 20 test galaxies. The dashed line is the baseline.

@@ -1,0 +1,21 @@
+# Figure captions (drafts)
+- **F01:** Spectroscopic redshifts of the 120 SDSS galaxies: histogram, kernel density and rug. Range 0.025–0.221, median 0.1.
+- **F02:** Distributions of de-reddened u, g, r, i, z magnitudes for the 120 galaxies. Galaxies are fainter in u (larger magnitude) and brighter towards the red. The dashed line marks the Main Galaxy Sample limit r = 17.77 used in the query.
+- **F03:** u − g versus g − r for the 120 galaxies, coloured by spectroscopic redshift. Higher-redshift galaxies sit at redder g − r.
+- **F04:** Colours of 120 SDSS galaxies versus spectroscopic redshift. Solid lines are LOESS fits with 95% bands; r is the Pearson correlation. g − r has the strongest correlation (r = 0.57): it reddens as the 4000 Å break moves through the g band.
+- **F05:** Pearson correlations among the five features and z_spec. The feature most correlated with redshift is g − r (r = 0.57).
+- **F06:** r-band magnitude versus spectroscopic redshift with a LOESS fit. More distant galaxies are fainter on average (inverse-square law); the dashed line is the r = 17.77 flux limit of the sample. Pearson r = 0.40.
+- **F20:** Observed wavelength of the 4000 Å break, 4000(1 + z) Å (black line), over the SDSS filter bands (shaded: effective wavelength ± FWHM/2, approximate). The grey band marks this sample (z = 0.025–0.221), where the break lies at 4098–4885 Å, inside the g band. It would leave g only at z ≈ 0.34.
+- **F07:** Spectroscopic redshift of the 100 training and 20 test galaxies (histograms, kernel densities and rugs) after a split that keeps v1's 20 test galaxies and trains on all others. Two-sample KS test: D = 0.110, p = 0.980, so there is no evidence that the two distributions differ.
+- **F08:** k-NN tuning: mean CV RMSE over 25 resamples (5-fold × 5) versus k, with a ±1 SD band. The chosen k = 11 has the lowest mean RMSE (0.0324).
+- **F09:** Out-of-bag mean squared error of the final random forest (mtry = 5, 100 training galaxies) as trees are added. The curve is flat well before 500 trees, so 500 is enough.
+- **F10:** Random-forest tuning: mean CV RMSE (±1 SD, 25 resamples) versus mtry. The star marks the chosen mtry = 5.
+- **F11:** SVR (RBF kernel) tuning: mean CV RMSE for each (C, σ) pair. The outlined cell is the chosen C = 32, σ = 0.01.
+- **F12:** Learning curves: mean training and test RMSE (±1 SD over 20 random subsets) versus training-set size, for each model with its tuned hyperparameters frozen.
+- **F13:** Distribution of CV RMSE over the same 25 resamples (5-fold × 5) for each model. Lowest mean CV RMSE: M4 SVR (0.0217); baseline 0.0440.
+- **F14:** Photometric versus spectroscopic redshift for the 20 test galaxies. The solid line is perfect agreement; dashed lines mark the catastrophic-outlier threshold |Δz| = 0.15(1 + z). Best learner by test RMSE: M3 Random Forest (RMSE 0.0318, σ_NMAD 0.0276); baseline RMSE 0.0457.
+- **F15:** Normalised residuals Δz/(1 + z) versus spectroscopic redshift for each model on the test set, with a LOESS trend. A trend from positive at low z to negative at high z means predictions are pulled towards the mean redshift.
+- **F16:** Distributions of the normalised residual Δz/(1 + z) on the 20 test galaxies for each model (histogram and kernel density); the dashed line is zero.
+- **F17:** Test-set RMSE for each model with 95% percentile bootstrap confidence intervals (2000 resamples of the 20 test galaxies). The dashed line is the mean-prediction baseline (RMSE 0.0457).
+- **F18:** Feature importance. Left: random-forest permutation importance (%IncMSE). Right: standardised linear-regression coefficients with 95% CIs (change in predicted z per 1 SD of each feature). Most important: g − r (RF) and g − r (LM).
+- **F19:** Partial dependence of the random-forest redshift prediction on g − r and r − i (training data; rugs show the observed values). Over the observed range, predicted z changes by 0.106 with g − r (Spearman ρ = 0.98).

@@ -20,7 +20,25 @@
     <h1>How far away is <em>this galaxy?</em></h1>
     <p class="lede">Enter its brightness in the five Sloan filters. Four models trained on real
       galaxies read the colours, find the redshift, and turn it into a distance.</p>
+    <div class="version-bar" role="group" aria-label="Choose which trained model set to use">
+      <span class="version-label">Model set</span>
+      <div class="seg" id="version-seg"></div>
+      <button type="button" class="link-btn" id="version-about">What changed?</button>
+    </div>
   </header>
+
+  <!-- Version chooser: shown on the first visit, and from "What changed?" -->
+  <dialog id="chooser" class="chooser" aria-labelledby="chooser-title">
+    <form method="dialog" class="chooser-inner">
+      <p class="kicker">Two trained versions</p>
+      <h2 id="chooser-title">Which model do you want to look at?</h2>
+      <p class="chooser-lede">The same four models were trained twice. Both are scored on the
+        <b>same <span class="js-ntest">20</span> held-out galaxies</b>, so you can compare them fairly.</p>
+      <div class="choices" id="choices"></div>
+      <p class="chooser-note" id="chooser-note"></p>
+      <p class="chooser-foot">You can switch at any time with <b>Model set</b> at the top of the page.</p>
+    </form>
+  </dialog>
 
   <main class="layout">
     <!-- Observation panel -->
@@ -81,7 +99,7 @@
     <section class="panel models reveal" style="--d:4" aria-labelledby="models-title">
       <div class="panel-head">
         <h2 id="models-title">Four models, one sky</h2>
-        <span class="tag">tested on 20 unseen galaxies</span>
+        <span class="tag" id="test-tag">tested on 20 unseen galaxies</span>
       </div>
       <div id="model-rows" class="model-rows"></div>
       <p class="caption">Error = test-set RMSE in z. The random forest is recommended: it was the
@@ -104,7 +122,7 @@
       <ol>
         <li><span class="num">01</span><h3>Measure</h3><p>Brightness through five filters, u g r i z, from ultraviolet to infrared.</p></li>
         <li><span class="num">02</span><h3>Read colours</h3><p>Differences like g − r trace the spectrum's shape, regardless of how bright the galaxy is.</p></li>
-        <li><span class="num">03</span><h3>Predict</h3><p>Models trained on 80 galaxies with spectroscopic redshifts map colours to z.</p></li>
+        <li><span class="num">03</span><h3>Predict</h3><p>Models trained on <span id="steps-ntrain">80</span> galaxies with spectroscopic redshifts map colours to z.</p></li>
         <li><span class="num">04</span><h3>Convert</h3><p>Standard cosmology (H₀ = 70, Ωm = 0.3) turns z into time and distance.</p></li>
       </ol>
     </section>
@@ -117,7 +135,7 @@
     <p class="mono" id="build-info"></p>
   </footer>
 
-  <script src="model.js"></script>
+  <script src="models/manifest.js"></script>
   <script src="predict.js"></script>
   <script src="app.js"></script>
 </body>

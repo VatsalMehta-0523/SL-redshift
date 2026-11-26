@@ -1,7 +1,9 @@
 ---
 title: "Photometric Redshift Prediction of Galaxies using SDSS Data"
-subtitle: "Unit 4 Mini-Project: AI-assisted Analysis of Physics Data using Supervised Learning in R"
+subtitle: "Unit 4 Mini-Project: AI-assisted Analysis of Physics Data using Supervised Learning in R — dataset version `r params$version` (`r c(v1 = 100, v2 = 120)[[params$version]]` galaxies)"
 date: "`r format(Sys.Date(), '%d %B %Y')`"
+params:
+  version: v2
 output:
   html_document:
     toc: true
@@ -14,8 +16,10 @@ output:
 ---
 
 ```{r setup, include = FALSE}
-# Every number in this report is read from outputs/tables/ or computed here
-# from the processed data (AGENTS.md R7). Nothing is typed in by hand.
+# Every number in this report is read from outputs/<version>/tables/ or
+# computed here from the processed data (AGENTS.md R7). Nothing is typed in by
+# hand. One report is rendered per dataset version (D-018); see
+# report/render_reports.R.
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE,
                       out.width = "100%", dpi = 300,
                       # Word cannot align figures; centring applies to HTML only
@@ -24,7 +28,15 @@ library(readr)
 library(dplyr)
 library(here)
 
-tab <- function(name, ...) read_csv(here("outputs", "tables", name), show_col_types = FALSE, ...)
+V <- params$version
+stopifnot(V %in% c("v1", "v2"))
+is_v2 <- V == "v2"
+tab <- function(name, ..., version = V) {
+  read_csv(here("outputs", version, "tables", name), show_col_types = FALSE, ...)
+}
+ctab <- function(name, ...) {
+  read_csv(here("outputs", "comparison", "tables", name), show_col_types = FALSE, ...)
+}
 f2 <- function(x) sprintf("%.2f", x)
 f3 <- function(x) sprintf("%.3f", x)
 f4 <- function(x) sprintf("%.4f", x)
@@ -39,21 +51,39 @@ t06 <- tab("T06_feature_importance.csv")
 preds <- tab("test_predictions.csv", col_types = cols(objid = col_character(), .default = col_double()))
 
 types <- cols(objid = col_character(), .default = col_double())
-train <- read_csv(here("data", "processed", "train.csv"), col_types = types)
-test <- read_csv(here("data", "processed", "test.csv"), col_types = types)
+train <- read_csv(here("data", "processed", V, "train.csv"), col_types = types)
+test <- read_csv(here("data", "processed", V, "test.csv"), col_types = types)
 
 # Figure captions written by the pipeline (outputs/figures/captions.md)
-cap_lines <- readLines(here("outputs", "figures", "captions.md"), encoding = "UTF-8")
+cap_lines <- c(readLines(here("outputs", V, "figures", "captions.md"), encoding = "UTF-8"),
+               if (is_v2) readLines(here("outputs", "comparison", "figures", "captions.md"),
+                                    encoding = "UTF-8"))
 cap_lines <- cap_lines[startsWith(cap_lines, "- **F")]
 caps <- setNames(sub("^- \\*\\*F[0-9]+:\\*\\* ", "", cap_lines),
                  sub("^- \\*\\*(F[0-9]+):.*$", "\\1", cap_lines))
 cap <- function(id) paste0("Figure ", id, ". ", caps[[id]])
-fig <- function(id) knitr::include_graphics(Sys.glob(here("outputs", "figures", paste0(id, "_*.png"))))
+fig <- function(id) {
+  dirs <- here("outputs", c(V, "comparison"), "figures")
+  knitr::include_graphics(Sys.glob(file.path(dirs, paste0(id, "_*.png")))[1])
+}
 
 # Key quantities used in the text
-n_raw <- t02$rows_before[t02$step == 1]
-n_rule6 <- t02$rows_removed[t02$step == 6]
-n_clean <- t02$rows_after[t02$step == 9]
+# Batch-1 cleaning (v1) is the base of both versions; v2 adds batch 2
+t02_v1 <- tab("T02_cleaning_log.csv", version = "v1")
+n_raw <- t02_v1$rows_before[t02_v1$step == 1]
+n_rule6 <- t02_v1$rows_removed[t02_v1$step == 6]
+n_clean <- nrow(train) + nrow(test)
+if (is_v2) {
+  n_raw2 <- t02$rows_before[t02$step == 1]
+  n_rule6_2 <- t02$rows_removed[t02$step == 6]
+  n_new <- t02$rows_after[t02$step == 8]
+  t07 <- ctab("T07_version_comparison.csv")
+  t08 <- ctab("T08_hyperparameter_drift.csv")
+  cmp <- readLines(here("outputs", "comparison", "tables", "comparison_notes.md"), encoding = "UTF-8")
+  t07_l <- filter(t07, model %in% c("M1_lm", "M2_knn", "M3_rf", "M4_svr"))
+  clear_gain <- t07_l |> filter(d_rmse_hi < 0) |> pull(label)
+  clear_loss <- t07_l |> filter(d_rmse_lo > 0) |> pull(label)
+}
 z_row <- filter(t01, variable == "redshift")
 ks <- ks.test(train$redshift, test$redshift)
 
@@ -93,8 +123,9 @@ include_md <- function(lines, shift = 2) {
   lines <- sub("^(#+) ", paste0("\\1", strrep("#", shift), " "), lines)
   cat(lines, sep = "\n")
 }
-notes <- readLines(here("outputs", "tables", "interpretation_notes.md"), encoding = "UTF-8")
-notes_section <- function(heading) {
+notes <- readLines(here("outputs", V, "tables", "interpretation_notes.md"), encoding = "UTF-8")
+notes_section <- function(heading, lines = notes) {
+  notes <- lines
   start <- which(notes == heading)
   rest <- which(startsWith(notes, "## ") & seq_along(notes) > start)
   end <- if (length(rest)) min(rest) - 1 else length(notes)
@@ -118,6 +149,7 @@ for the baseline). On the held-out test set the best model was
 `r outlier_text`). The colour g − r is by far the most important
 predictor, and predicted redshift rises steadily with it. This is the
 signature of the 4000 Å break moving through the g filter as galaxies recede.
+`r if (is_v2) paste0("This is version v2 of the analysis: the original 100 galaxies (v1) plus ", n_new, " new galaxies from a second SDSS pull, all added to the training set. Scored on the same ", nrow(test), " test galaxies as v1, the extra data gave a clear improvement for ", if (length(clear_gain)) paste(clear_gain, collapse = ", ") else "no model", " and no clear change for the others (paired bootstrap).") else "This is version v1, the analysis that follows the course brief (30–100 observations)."`
 
 # Introduction and physics background
 
@@ -174,6 +206,7 @@ spectroscopically confirmed galaxies with reliable redshifts
 14 ≤ r ≤ 17.77, 0.01 < z < 0.5 and magnitude errors below 0.2. Magnitudes
 are corrected for Milky Way dust (`dered_*`). The raw file is frozen and
 recorded with an MD5 checksum in `data/raw/ACQUISITION.md`.
+`r if (is_v2) paste0("For version v2 a second, independent pull of ", n_raw2, " galaxies was made with the identical query (batch 2, data/sql/sdss_query_batch2.sql) and frozen in the same way (data/raw/ACQUISITION_batch2.md).") else ""`
 
 ## AI-assisted inspection and cleaning
 
@@ -185,12 +218,13 @@ the appendix. The data contained no missing values, sentinels or duplicates.
 The colour-outlier rule (median ± 5·MAD) removed `r n_rule6` galaxies that
 were blue in all colours. The AI suggested keeping them as probably real
 star-forming galaxies; the student chose to apply the planned rule. A random
-sample of `r n_clean` galaxies (seed 42) forms the analysis set.
+sample of 100 galaxies (seed 42) forms the v1 analysis set.
+`r if (is_v2) paste0("For v2, batch 2 went through exactly the same rules (R/utils_clean.R). The colour-outlier rule used the *frozen* batch-1 median and MAD, so the threshold did not move and no v1 galaxy could be dropped; it removed ", n_rule6_2, " batch-2 galaxies. Galaxies already present in batch 1 would also have been removed (there were none). ", n_new, " of the survivors were drawn at random (seed 42) and appended to the 100 v1 galaxies, giving ", n_clean, ". Table T02 below is the batch-2 log; two-sample KS tests found no difference between batch 2 and batch 1 in redshift, r, g − r or u − g (smallest p = ", sub(".*min KS p-value vs batch 1: ", "", t02$details[t02$step == 2]), ").") else ""`
 
 ```{r t02}
 knitr::kable(select(t02, step, rule, rows_before, rows_after, rows_removed),
              col.names = c("Step", "Rule", "Rows before", "Rows after", "Removed"),
-             caption = "Table T02. Cleaning log: each rule and the rows it removed.")
+             caption = if (is_v2) "Table T02. Cleaning log of batch 2 (the galaxies added in v2): each rule and the rows it removed." else "Table T02. Cleaning log: each rule and the rows it removed.")
 ```
 
 ## Summary statistics
@@ -238,8 +272,7 @@ brightness–distance information.
 
 ## Train/test split
 
-A stratified split on redshift (`caret::createDataPartition`, seed 42) gives
-`r nrow(train)` training and `r nrow(test)` test galaxies. A two-sample KS test
+`r if (is_v2) paste0("v2 keeps exactly the ", nrow(test), " test galaxies of v1, so the two versions are compared on the same galaxies (a paired design). All other galaxies (the 80 v1 training galaxies and the ", n_new, " new ones) form the ", nrow(train), "-galaxy training set. v1 itself used a stratified split on redshift (caret::createDataPartition, seed 42).") else paste0("A stratified split on redshift (caret::createDataPartition, seed 42) gives ", nrow(train), " training and ", nrow(test), " test galaxies.")` A two-sample KS test
 finds no difference between their redshift distributions (D = `r f3(ks$statistic)`,
 p = `r f3(ks$p.value)`, Figure F07). The test set was not used for any
 training, tuning or preprocessing decision.
@@ -379,10 +412,8 @@ include_md(notes_section("## Hypotheses (README §3.6)"))
 Cross-validation ranks `r cv_best$label` first, but on the test set
 `r te_best$label` is best. The difference comes from a few test galaxies whose
 colours lie outside the range seen in training (`r outside_n` of
-`r nrow(test)`). One of them has a red u − g but unusually blue g − r, r − i and
-i − z. The linear model and the near-linear SVR extrapolate for it and predict
-a **negative**, unphysical redshift (`r nrow(neg)` predictions below zero in
-total). A random forest predicts averages of training redshifts and cannot
+`r nrow(test)`). For such galaxies the linear model and the near-linear SVR
+extrapolate`r if (nrow(neg) > 0) paste0(" and can predict a **negative**, unphysical redshift (", nrow(neg), " predictions below zero in total)") else ""`. A random forest predicts averages of training redshifts and cannot
 leave the training range, so it is more robust to such galaxies. Every model
 also pulls the lowest- and highest-redshift galaxies towards the mean redshift
 (Figure F15), a typical effect of a small training set.
@@ -402,9 +433,46 @@ model as the training set grows.
 include_md(notes_section("## Physics of the sample"))
 ```
 
+```{r v2-comparison, results = "asis", eval = is_v2}
+cat("# Effect of 20 more training galaxies: v1 versus v2\n\n")
+cat("Both versions are scored on the same", nrow(test), "test galaxies, so their difference",
+    "is estimated with a **paired** bootstrap: each of 2000 resamples of the test galaxies is",
+    "scored with both versions, which cancels the galaxy-to-galaxy scatter that makes each",
+    "version's own confidence interval in Table T05 so wide.\n\n")
+```
+
+```{r t07, eval = is_v2}
+knitr::kable(
+  t07 |>
+    transmute(Model = label, `RMSE v1` = f4(rmse_v1), `RMSE v2` = f4(rmse_v2),
+              `Δ RMSE [paired 95% CI]` = sprintf("%+.4f [%+.4f, %+.4f]", d_rmse, d_rmse_lo, d_rmse_hi),
+              `P(v2 better)` = f2(p_improved),
+              `σ_NMAD v1 → v2` = paste(f4(sigma_nmad_v1), "→", f4(sigma_nmad_v2)),
+              `CV RMSE v1 → v2` = paste(f4(cv_rmse_v1), "→", f4(cv_rmse_v2))),
+  caption = "Table T07. Test-set metrics of v1 (80 training galaxies) and v2 (100) on the same 20 test galaxies, with the paired-bootstrap change.")
+```
+
+```{r f21, eval = is_v2, fig.cap = if (is_v2) cap("F21") else NULL}
+fig("F21")
+```
+
+```{r f22, eval = is_v2, fig.cap = if (is_v2) cap("F22") else NULL}
+fig("F22")
+```
+
+```{r t08, eval = is_v2}
+knitr::kable(select(t08, Model = label, Parameter = parameter, v1 = selected_v1, v2 = selected_v2),
+             caption = "Table T08. Hyperparameters re-tuned by cross-validation on each version's training set.")
+```
+
+```{r notes-comparison, results = "asis", eval = is_v2}
+include_md(notes_section("## Design", cmp), shift = 0)
+include_md(notes_section("## Reading the result", cmp), shift = 0)
+```
+
 # Limitations
 
-- **Small sample.** n = `r n_clean` is set by the assignment brief. Real
+- **Small sample.** n = `r n_clean``r if (is_v2) " (v2 deliberately goes 20 beyond the brief's limit of 100, decision D-018; v1 is the brief-compliant version)" else ", the maximum the assignment brief allows"`. Real
   photo-z work uses 10^5^–10^6^ training galaxies.
 - **Small test set.** With `r nrow(test)` galaxies, metrics have wide
   confidence intervals and η can only change in steps of
@@ -434,6 +502,7 @@ predictions, and predicted redshift rises monotonically with it. Smooth models
 (linear regression, SVR) do best in cross-validation, while the random forest
 is the most robust on unusual test galaxies because it cannot extrapolate to
 unphysical values.
+`r if (is_v2) paste0("Adding ", n_new, " galaxies (25% more training data) changed the test RMSE by ", paste(sprintf("%s %+.1f%%", t07_l$label, t07_l$pct_change), collapse = ", "), ". Only ", if (length(clear_gain)) paste(clear_gain, collapse = ", ") else "no model", " improved beyond the paired uncertainty", if (length(clear_loss)) paste0(" and ", paste(clear_loss, collapse = ", "), " got clearly worse") else ", and no model got clearly worse", ". The gain shows up in the local, variance-limited learner, as expected, while the bias-limited linear model is unchanged.") else ""`
 
 # References
 

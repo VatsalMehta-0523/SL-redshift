@@ -34,6 +34,7 @@
 | AI-012 | 2026-10-18 | Inference app (code) | Claude Code (Claude Opus 5.5) | Built a Shiny app: magnitudes in, predicted z out, with training-range checks | Accepted (owner tested, committed and pushed) | `app/app.R`, `R/utils_predict.R` |
 | AI-013 | 2026-10-22 | Tests & final check | Claude Code (Claude Opus 5.5) | Wrote testthat suites (metrics, data, leakage, prediction); fresh-clone run; Definition of Done walk-through | Pending owner review | `tests/testthat/` |
 | AI-014 | 2026-10-22 | Web demo (code) | Claude Code (Claude Opus 5.5) | Exported trained models to a static site for free drag-and-drop hosting; verified browser = R predictions | Pending owner review | `R/08_export_web.R`, `site/`, `tests/testthat/test-web.R` |
+| AI-015 | 2026-11-26 | v2 dataset (acquire, clean, retrain, compare, web) | Claude Code (Claude Opus 5.5) | Pulled 30 new galaxies, cleaned with the frozen v1 rules, added 20 to training (same test set), retrained, paired v1-vs-v2 comparison, version chooser on the site and in the app | Pending owner review | `R/02b_extend_v2.R`, `R/09_compare_versions.R`, `site/`, D-018 |
 
 ---
 
@@ -498,3 +499,54 @@
   `tests/testthat/test-web.R`, `run_all.R`, README, DECISIONS D-017
 - **Effect on data:** none (read-only)
 - **Linked decision:** D-002, D-017
+
+### AI-015 — Dataset version v2: 20 more training galaxies
+- **Date:** 2026-11-26
+- **Stage:** Acquisition, cleaning, retraining, evaluation, web demo
+- **Tool / model:** Claude Code (Claude Opus 5.5)
+- **Input given to AI:** the whole repository; the owner's request to train on
+  20 more points and to let the deployed site ask whether to show the
+  100-point or the 120-point model.
+- **Prompt (short):** "Train on 20 more points, retrain, update everything,
+  and let the deployed demo ask which model to look at (100 or 120)."
+- **AI output / suggestion:**
+  - Proposed and implemented D-018: keep v1 frozen, pull a **second
+    independent batch** with the identical query (30 galaxies, DR18, frozen
+    with MD5), clean it with the **same rules** moved to `R/utils_clean.R`,
+    using the **frozen batch-1 median/MAD** for the outlier rule, then add 20
+    seeded survivors to the **training set only** and keep v1's 20 test
+    galaxies. The aim is a paired v1-vs-v2 comparison.
+  - Inspection of batch 2: no NA, sentinels or duplicates, and no overlap
+    with batch 1. The frozen 5·MAD rule removed 2 galaxies with very blue
+    i − z (−5.7 and −16.6 MAD; the second, at z = 0.015, also has r − i at
+    −6.0 MAD), like the 2 removed from batch 1 (AI-004). KS tests
+    against batch 1 found no difference in redshift, r, g − r or u − g
+    (smallest p = 0.16).
+  - Made every script version-aware (`PHOTOZ_VERSION`, `version_paths()`),
+    moved the v1 outputs to `outputs/v1/` and `data/processed/v1/`, and
+    **re-ran v1 to prove it is byte-identical** (every table and processed CSV
+    has the same MD5, except one path string in T02).
+  - Wrote `R/09_compare_versions.R`: a paired bootstrap of ΔRMSE on the shared
+    test set (T07), hyperparameter drift (T08), F21 and F22, and computed
+    notes. The AI found and fixed its own bug: a `tibble()` column named
+    `d_rmse` shadowed the bootstrap vector, which made the CIs collapse to a
+    point.
+  - Result: k-NN improved clearly (−12%, paired CI below zero; k re-tuned
+    8 → 11). RF −4% and linear +2% are within the noise; SVR +13% is within
+    the noise. RF stays the best test model. The bias–variance interpretation
+    in `comparison_notes.md` is the AI's reading, for the owner to check.
+  - Web demo: a first-visit dialog asks "Which model do you want to look
+    at?" (v1 · 100 / v2 · 120), with a persistent switch, `?model=v1|v2`
+    links and per-version model files loaded on demand. The Shiny app got a
+    model-set selector. Tests now cover both versions (174 passing); browser
+    predictions equal R's to 1e-9 for both.
+- **Owner decision:** _pending review_. v2 exceeds the brief's 100-observation
+  limit, so the owner should confirm with the instructor which version to
+  submit (v1 is the compliant one).
+- **Resulting code:** `R/00_setup.R`, `R/01_acquire.R`, `R/utils_clean.R`,
+  `R/02_inspect_clean.R`, `R/02b_extend_v2.R`, `R/04_split.R`,
+  `R/05_train.R`, `R/08_export_web.R`, `R/09_compare_versions.R`,
+  `run_all.R`, `app/app.R`, `site/`, `tests/testthat/`, `report/`
+- **Effect on data:** new frozen raw file `data/raw/sdss_raw_batch2.csv`; v1
+  data unchanged; new `data/processed/v2/`
+- **Linked decision:** D-018

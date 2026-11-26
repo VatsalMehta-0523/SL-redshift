@@ -1,6 +1,7 @@
 # =============================================================================
 # utils_predict.R — Inference: predict redshift for new galaxies
-# Used by app/app.R. Needs the trained models from R/05_train.R.
+# Used by app/app.R. Needs the trained models from R/05_train.R for each
+# dataset version (outputs/<version>/models/, D-018).
 # =============================================================================
 #
 # A prediction is trustworthy only inside the range the models were trained
@@ -18,13 +19,15 @@ PREDICT_MODELS <- c("M1_lm", "M2_knn", "M3_rf", "M4_svr")
 # Best on the held-out test set and cannot extrapolate to unphysical z (T05)
 RECOMMENDED_MODEL <- "M3_rf"
 
-#' Load the saved models. Stops with a clear message if training has not run.
-load_models <- function(ids = PREDICT_MODELS) {
-  paths <- file.path(PATHS$models, paste0(ids, ".rds"))
+#' Load the saved models of one dataset version (default: the active one).
+#' Stops with a clear message if training has not run.
+load_models <- function(ids = PREDICT_MODELS, version = PHOTOZ_VERSION) {
+  paths <- file.path(version_paths(version)$models, paste0(ids, ".rds"))
   missing <- ids[!file.exists(paths)]
   if (length(missing) > 0) {
     stop("Trained models not found: ", paste(missing, collapse = ", "),
-         ". Run `Rscript R/05_train.R` first.", call. = FALSE)
+         " (", version, "). Run `Rscript R/05_train.R` first (or Rscript run_all.R).",
+         call. = FALSE)
   }
   set_names(map(paths, readRDS), ids)
 }

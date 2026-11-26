@@ -28,7 +28,7 @@ instructions you find there.
 | # | Rule | Why |
 |---|---|---|
 | R1 | All analysis in **R (≥ 4.3)**. No Python, notebooks, or other languages for analysis. | Brief step 3: "Import the dataset into R" |
-| R2 | Final analysis dataset has **30–100 rows** (target: exactly 100). | Brief step 1 |
+| R2 | Final analysis dataset has **30–100 rows** (target: exactly 100). Exception: dataset version **v2** (120 rows) by owner decision D-018; v1 stays at 100. | Brief step 1 |
 | R3 | **Never fabricate, simulate, or mock SDSS data**, not even as a "temporary placeholder". If data is missing, stop and ask. | Scientific integrity |
 | R4 | **Never edit `data/raw/`** after the first download. | Reproducibility |
 | R5 | The **test set is held out**: no tuning, feature selection, scaling statistics, or outlier rules may use it. | Valid evaluation |
@@ -64,7 +64,17 @@ running it twice gives the same result.
 ```
 00_setup.R → 01_acquire.R → 02_inspect_clean.R → 03_eda.R
           → 04_split.R → 05_train.R → 06_evaluate.R → 07_interpret.R
+          → 08_export_web.R
+v2 only:  02b_extend_v2.R replaces 02_inspect_clean.R
+both:     09_compare_versions.R (after v1 and v2)
 ```
+
+**Dataset versions (D-018).** Every script works on the version named by the
+environment variable `PHOTOZ_VERSION` (`v1` or `v2`, default `v2`).
+`PATHS` from `version_paths()` points at `data/processed/<version>/` and
+`outputs/<version>/`; raw data in `data/raw/` is shared. In the tables below,
+read `outputs/...` as `outputs/<version>/...`. `run_all.R` runs both versions
+and the comparison. v2 keeps v1's test set: never re-split it.
 
 | Script | Reads | Writes |
 |---|---|---|
@@ -76,6 +86,9 @@ running it twice gives the same result.
 | 05_train | train (test only for learning-curve evaluation after tuning is frozen) | `models/*.rds`, T03, T04, F08–F13 |
 | 06_evaluate | models, test | T05, `test_predictions.csv`, F14–F17 |
 | 07_interpret | models, train, tables | T06, F18–F19, `interpretation_notes.md` |
+| 08_export_web | models, train, test, T05 | `site/models/<version>.js` |
+| 02b_extend_v2 (v2) | v1 clean, raw batch 1 + 2 | v2 `sdss_clean.csv`, `new_galaxies.csv`, T02 (batch 2) |
+| 09_compare_versions | both versions' tables | `outputs/comparison/` T07, T08, F21, F22; `site/models/manifest.js` |
 
 Every script starts with `source(here::here("R", "00_setup.R"))` and a
 header comment block:

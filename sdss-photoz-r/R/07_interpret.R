@@ -6,6 +6,8 @@
 #          outputs/tables/interpretation_notes.md,
 #          outputs/figures/F18–F19 (.png + .pdf), captions.md
 # Brief  : TASK.md §4, step 7; README §3.6 hypotheses H1–H4
+# Paths  : relative to the active dataset version (PHOTOZ_VERSION, D-018):
+#          data/processed/<version>/ and outputs/<version>/
 # =============================================================================
 #
 # The physics story under test (README §3): the 4000 Å break moves through the

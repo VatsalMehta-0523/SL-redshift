@@ -1,12 +1,13 @@
 # =============================================================================
 # 01_acquire.R — Workflow step 1: obtain the SDSS galaxy dataset
-# Inputs : data/sql/sdss_query.sql
-# Outputs: data/raw/sdss_raw.csv (frozen after the first download, D-015),
-#          data/raw/ACQUISITION.md (date, release, query, rows, MD5)
-# Brief  : TASK.md §4, step 1; decisions D-003, D-004, D-005, D-015
+# Inputs : data/sql/sdss_query.sql (batch 1), data/sql/sdss_query_batch2.sql (batch 2)
+# Outputs: data/raw/sdss_raw.csv + ACQUISITION.md               (batch 1, v1 and v2)
+#          data/raw/sdss_raw_batch2.csv + ACQUISITION_batch2.md  (batch 2, v2 only)
+#          Each file is frozen after its first download (D-015).
+# Brief  : TASK.md §4, step 1; decisions D-003, D-004, D-005, D-015, D-018
 # =============================================================================
 #
-# Behaviour
+# Behaviour (for every raw batch the active version needs, VERSION$batches)
 #   * sdss_raw.csv exists  -> never download again. Validate it, check its MD5
 #                             against ACQUISITION.md, and write ACQUISITION.md
 #                             if the file was downloaded by hand.
@@ -90,7 +91,7 @@ read_raw <- function(path) {
 }
 
 #' Check columns, parsing problems and row count (TASK.md C1, D-003).
-validate_raw <- function(raw) {
+validate_raw <- function(raw, batch) {
   missing_cols <- setdiff(RAW_COLUMNS, names(raw))
   if (length(missing_cols) > 0) {
     stop("sdss_raw.csv is missing columns: ", paste(missing_cols, collapse = ", "),
@@ -102,15 +103,10 @@ validate_raw <- function(raw) {
     print(readr::problems(raw))
     stop("sdss_raw.csv has values that could not be parsed (see above).", call. = FALSE)
   }
-  if (nrow(raw) < N_MIN) {
-    stop(glue("sdss_raw.csv has only {nrow(raw)} rows; at least {N_MIN} are needed."),
-      call. = FALSE
-    )
-  }
-  if (nrow(raw) < N_TARGET) {
+  if (nrow(raw) < batch$n_query) {
     warning(glue(
-      "sdss_raw.csv has {nrow(raw)} rows (< {N_TARGET}). Cleaning will keep ",
-      "all of them; record this in DECISIONS.md."
+      "{basename(batch$raw)} has {nrow(raw)} rows (query asked for {batch$n_query}). ",
+      "Record this in DECISIONS.md."
     ), call. = FALSE)
   }
   invisible(raw)
@@ -124,12 +120,13 @@ recorded_md5 <- function(path) {
 }
 
 #' Write data/raw/ACQUISITION.md, the provenance record for the frozen file.
-write_acquisition_record <- function(raw, release, url, method, when) {
-  md5 <- unname(tools::md5sum(PATHS$raw))
-  sql_lines <- readLines(PATHS$sql, warn = FALSE, encoding = "UTF-8")
+write_acquisition_record <- function(batch, raw, release, url, method, when) {
+  md5 <- unname(tools::md5sum(batch$raw))
+  sql_lines <- readLines(batch$sql, warn = FALSE, encoding = "UTF-8")
+  raw_name <- basename(batch$raw)
 
   record <- c(
-    "# ACQUISITION.md — provenance of data/raw/sdss_raw.csv",
+    glue("# {basename(batch$acquisition)} — provenance of data/raw/{raw_name}"),
     "",
     "Written by `R/01_acquire.R`. Do not edit by hand. The raw file is frozen (D-015).",
     "",
@@ -141,78 +138,83 @@ write_acquisition_record <- function(raw, release, url, method, when) {
     glue("| Endpoint | {url} |"),
     glue("| Rows | {nrow(raw)} |"),
     glue("| Columns | {paste(names(raw), collapse = ', ')} |"),
-    glue("| MD5 of sdss_raw.csv | `{md5}` |"),
+    glue("| MD5 of {raw_name} | `{md5}` |"),
     glue("| R version | {R.version.string} |"),
     "",
-    "## Query (`data/sql/sdss_query.sql`)",
+    glue("## Query (`data/sql/{basename(batch$sql)}`)"),
     "",
     "```sql",
     sql_lines,
     "```",
     "",
     "The query uses `ORDER BY NEWID()`, so re-running it returns *different*",
-    "galaxies. This record and `sdss_raw.csv` are the frozen copy (D-015)."
+    glue("galaxies. This record and `{raw_name}` are the frozen copy (D-015).")
   )
-  writeLines(record, PATHS$acquisition, useBytes = TRUE)
-  message("Wrote ", PATHS$acquisition)
+  writeLines(record, batch$acquisition, useBytes = TRUE)
+  message("Wrote ", batch$acquisition)
 }
 
 # --- Main --------------------------------------------------------------------
 
-if (file.exists(PATHS$raw)) {
-  message("data/raw/sdss_raw.csv exists. It is frozen (D-015): not downloading again.")
-  raw <- validate_raw(read_raw(PATHS$raw))
+#' Validate a frozen batch, or download it if it does not exist yet.
+acquire_batch <- function(batch) {
+  raw_name <- basename(batch$raw)
+  if (file.exists(batch$raw)) {
+    message(glue("data/raw/{raw_name} exists. It is frozen (D-015): not downloading again."))
+    raw <- validate_raw(read_raw(batch$raw), batch)
 
-  if (file.exists(PATHS$acquisition)) {
-    # The raw file must be byte-identical to the one recorded at download time
-    md5_now <- unname(tools::md5sum(PATHS$raw))
-    md5_then <- recorded_md5(PATHS$acquisition)
-    if (!is.na(md5_then) && md5_now != md5_then) {
-      stop(
-        "sdss_raw.csv has changed since it was acquired (MD5 ", md5_now,
-        " vs recorded ", md5_then, ").\nRaw data must never be edited (D-015). ",
-        "Restore it from git, or record a new decision before replacing it.",
-        call. = FALSE
+    if (file.exists(batch$acquisition)) {
+      # The raw file must be byte-identical to the one recorded at download time
+      md5_now <- unname(tools::md5sum(batch$raw))
+      md5_then <- recorded_md5(batch$acquisition)
+      if (!is.na(md5_then) && md5_now != md5_then) {
+        stop(
+          raw_name, " has changed since it was acquired (MD5 ", md5_now,
+          " vs recorded ", md5_then, ").\nRaw data must never be edited (D-015). ",
+          "Restore it from git, or record a new decision before replacing it.",
+          call. = FALSE
+        )
+      }
+      message("MD5 matches ", basename(batch$acquisition), ".")
+    } else {
+      # Manual download (README §5): the release and date are not known here
+      write_acquisition_record(
+        batch, raw,
+        release = "unknown (manual download; fill in by hand if known)",
+        url     = "SkyServer SQL Search web form (README §5)",
+        method  = "Manual download via the SkyServer web form",
+        when    = file.mtime(batch$raw)
       )
     }
-    message("MD5 matches ACQUISITION.md.")
   } else {
-    # Manual download (README §5): the release and date are not known here
+    result <- download_raw(read_query(batch$sql))
+
+    # Write with "\n" line endings on every OS so the MD5 is reproducible
+    con <- file(batch$raw, open = "wb")
+    writeLines(result$lines, con, sep = "\n")
+    close(con)
+    message("Saved ", batch$raw)
+
+    raw <- validate_raw(read_raw(batch$raw), batch)
     write_acquisition_record(
-      raw,
-      release = "unknown (manual download; fill in by hand if known)",
-      url     = "SkyServer SQL Search web form (README §5)",
-      method  = "Manual download via the SkyServer web form",
-      when    = file.mtime(PATHS$raw)
+      batch, raw,
+      release = toupper(result$release),
+      url     = result$url,
+      method  = "SkyServer SqlSearch web service via R/01_acquire.R (httr2)",
+      when    = Sys.time()
     )
   }
-} else {
-  sql <- read_query(PATHS$sql)
-  result <- download_raw(sql)
 
-  # Write with "\n" line endings on every OS so the MD5 is reproducible
-  con <- file(PATHS$raw, open = "wb")
-  writeLines(result$lines, con, sep = "\n")
-  close(con)
-  message("Saved ", PATHS$raw)
-
-  raw <- validate_raw(read_raw(PATHS$raw))
-  write_acquisition_record(
-    raw,
-    release = toupper(result$release),
-    url     = result$url,
-    method  = "SkyServer SqlSearch web service via R/01_acquire.R (httr2)",
-    when    = Sys.time()
-  )
+  message(glue(
+    "\n{raw_name}: {nrow(raw)} rows x {ncol(raw)} columns\n",
+    "  redshift : {round(min(raw$redshift), 4)} to {round(max(raw$redshift), 4)}\n",
+    "  r (mag)  : {round(min(raw$r), 2)} to {round(max(raw$r), 2)}\n",
+    "  NA cells : {sum(is.na(raw))}\n",
+    "  duplicate objid: {sum(duplicated(raw$objid))}",
+    .trim = FALSE
+  ))
+  invisible(raw)
 }
 
-# --- Summary -----------------------------------------------------------------
-
-message(glue(
-  "\nRaw data: {nrow(raw)} rows x {ncol(raw)} columns\n",
-  "  redshift : {round(min(raw$redshift), 4)} to {round(max(raw$redshift), 4)}\n",
-  "  r (mag)  : {round(min(raw$r), 2)} to {round(max(raw$r), 2)}\n",
-  "  NA cells : {sum(is.na(raw))}\n",
-  "  duplicate objid: {sum(duplicated(raw$objid))}",
-  .trim = FALSE
-))
+message(glue("Dataset version {VERSION$id}: raw batches {paste(VERSION$batches, collapse = ', ')}"))
+for (b in VERSION$batches) acquire_batch(RAW_BATCHES[[b]])

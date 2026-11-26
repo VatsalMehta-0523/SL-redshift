@@ -4,16 +4,18 @@
 # Outputs: outputs/tables/T01_dataset_summary.csv/.md,
 #          outputs/figures/F01–F06, F20 (.png + .pdf), captions.md
 # Brief  : TASK.md §4, step 3; spec docs/REPORT_GUIDE.md §2A
+# Paths  : relative to the active dataset version (PHOTOZ_VERSION, D-018):
+#          data/processed/<version>/ and outputs/<version>/
 # =============================================================================
 #
 # Descriptive only: no model is fitted and nothing is chosen from these plots.
-# They describe the full 100-galaxy sample before the split, as is standard
+# They describe the full sample (100 galaxies in v1, 120 in v2) before the split, as is standard
 # for a data section.
 
 source(here::here("R", "00_setup.R"))
 
 clean <- read_csv(PATHS$clean, col_types = RAW_COL_TYPES, progress = FALSE)
-stopifnot(nrow(clean) >= N_MIN, nrow(clean) <= N_MAX)
+stopifnot(nrow(clean) >= N_MIN, nrow(clean) == N_TARGET)
 n <- nrow(clean)
 
 COLOURS <- names(COLOUR_LABELS)

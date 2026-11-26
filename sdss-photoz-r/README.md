@@ -10,6 +10,13 @@ regression metrics and with the metrics astronomers use for photo-z, and
 explain the results with the underlying physics (the **4000 Å break**
 redshifting through the filters).
 
+> 🔀 **Two trained versions (D-018).** **v1** is the original analysis of
+> **100 galaxies** (80 train / 20 test) that follows the brief. **v2** adds
+> **20 new SDSS galaxies** from a second, frozen SkyServer pull to the
+> *training set* (120 galaxies, 100 train / 20 test). Both are scored on the
+> **same 20 test galaxies**, so they can be compared directly (§12.3). The web
+> demo and the Shiny app ask which one you want to use.
+
 > 📌 **The assignment brief is [`TASK.md`](TASK.md), and it overrides every
 > other document in this repository.**
 > Coding agents: start with [`AGENTS.md`](AGENTS.md) and paste
@@ -26,24 +33,28 @@ folder, in PowerShell, cmd or bash.
 # 1. Install the exact package versions (once)
 Rscript -e "renv::restore(prompt = FALSE)"
 
-# 2. Run the full analysis: cleaning → EDA → split → training → evaluation → interpretation
+# 2. Run the full analysis for v1 (100 galaxies) and v2 (120), then compare them
 Rscript run_all.R
 
-# 3. Open the interactive app: type in a galaxy's magnitudes, get its predicted redshift
+# 3. Open the interactive app: pick a model set, type in magnitudes, get the redshift
 Rscript -e "shiny::runApp('app', launch.browser = TRUE)"
 
-# 4. Build the report (HTML + Word)
-Rscript -e "rmarkdown::render('report/report.Rmd', output_format = 'all')"
+# 4. Build both reports (HTML + Word): report_v1_n100 and report_v2_n120
+Rscript report/render_reports.R
 ```
 
 The app needs the trained models, which are not stored in git. Run step 2
-(or just `Rscript R/05_train.R`) before step 3 on a fresh clone. Press
+before step 3 on a fresh clone. To run a single script for one version, set
+`PHOTOZ_VERSION` first (PowerShell: `$env:PHOTOZ_VERSION = "v1"`; the default
+is `v2`). Press
 **Ctrl+C** in the terminal to stop the app. Details: §11 (pipeline),
 §11.1 (app), §4 (setup in VS Code).
 
 **🌐 Public web demo (free, one URL):** the `site/` folder is a ready-made
 static website. To publish it, drag `site/` onto <https://app.netlify.com/drop>
-(see §11.2). To try it locally, just open `site/index.html` in a browser.
+(see §11.2). On the first visit it asks which model set to use (100 or 120
+galaxies); a switch at the top changes it at any time. To try it locally,
+serve the folder (§11.2), because the page loads each model set on demand.
 
 ---
 
@@ -320,7 +331,7 @@ Here is how we do it (D-012):
 2. **Propose:** the AI suggests cleaning rules with a reason for each.
 3. **Decide:** the owner accepts, modifies or rejects each rule.
 4. **Implement:** the rules are coded in `R/02_inspect_clean.R`. Each rule logs
-   its row counts to `outputs/tables/T02_cleaning_log.csv`.
+   its row counts to `outputs/<version>/tables/T02_cleaning_log.csv`.
 5. **Record:** every interaction is written to `docs/AI_USAGE.md` (prompt →
    suggestion → decision → code).
 
@@ -359,33 +370,41 @@ sdss-photoz-r/
 │   ├── REPORT_GUIDE.md     ← every figure/table + report outline
 │   └── AI_USAGE.md         ← log of AI-assisted work (brief step 2)
 ├── data/
-│   ├── sql/sdss_query.sql  ← the SkyServer query
-│   ├── raw/                ← sdss_raw.csv (frozen) + ACQUISITION.md
-│   └── processed/          ← sdss_clean.csv, train.csv, test.csv
+│   ├── sql/                ← sdss_query.sql (batch 1), sdss_query_batch2.sql (batch 2)
+│   ├── raw/                ← sdss_raw.csv + ACQUISITION.md (batch 1, 120 rows),
+│   │                          sdss_raw_batch2.csv + ACQUISITION_batch2.md (batch 2, 30 rows); all frozen
+│   └── processed/
+│       ├── v1/             ← sdss_clean.csv (100), train.csv (80), test.csv (20)
+│       └── v2/             ← sdss_clean.csv (120), train.csv (100), test.csv (same 20), new_galaxies.csv
 ├── R/
-│   ├── 00_setup.R          ← packages, SEED = 42, paths, theme
+│   ├── 00_setup.R          ← packages, SEED = 42, VERSIONS (v1/v2), version_paths(), theme
 │   ├── utils_data.R        ← FEATURES, derive_colours() (shared by cleaning + app)
-│   ├── utils_predict.R     ← load_models(), predict_redshift() with range checks
+│   ├── utils_clean.R       ← cleaning rules shared by batch 1 and batch 2
+│   ├── utils_predict.R     ← load_models(version), predict_redshift() with range checks
 │   ├── utils_metrics.R     ← rmse(), mae(), r2(), bias(), sigma_nmad(), eta()
 │   ├── utils_plot.R        ← theme_report(), save_fig(), model colours
 │   ├── 01_acquire.R        ← step 1
-│   ├── 02_inspect_clean.R  ← steps 2–3
+│   ├── 02_inspect_clean.R  ← steps 2–3 (batch 1 → v1)
+│   ├── 02b_extend_v2.R     ← steps 2–3 for v2 (batch 2 → 20 new galaxies)
 │   ├── 03_eda.R            ← step 3 (exploration)
 │   ├── 04_split.R          ← step 4
 │   ├── 05_train.R          ← step 5
 │   ├── 06_evaluate.R       ← step 6
 │   ├── 07_interpret.R      ← step 7
-│   └── 08_export_web.R     ← export trained models → site/model.js
+│   ├── 08_export_web.R     ← export trained models → site/models/<version>.js
+│   └── 09_compare_versions.R ← v1 vs v2 on the same test set (T07, T08, F21, F22)
 ├── app/app.R               ← Shiny app: enter magnitudes → predicted redshift
-├── site/                   ← static web demo (Netlify Drop): index.html, app.js, predict.js, model.js
-├── run_all.R               ← runs 00 → 07, logs time, writes sessionInfo
-├── report/report.Rmd       ← → report.html + report.docx
+├── site/                   ← static web demo (Netlify Drop): index.html, app.js, predict.js,
+│                              models/v1.js, models/v2.js, models/manifest.js
+├── run_all.R               ← runs v1, then v2, then the comparison; logs time, writes sessionInfo
+├── report/                 ← report.Rmd (params: version) + render_reports.R →
+│                              report_v1_n100.html/.docx, report_v2_n120.html/.docx
 ├── outputs/
-│   ├── figures/            ← F01–F20 (.png 300 dpi + .pdf) + captions.md
-│   ├── tables/             ← T01–T06 (.csv + .md), test_predictions.csv
-│   ├── models/             ← fitted models (.rds)
+│   ├── v1/, v2/            ← per version: figures/ (F01–F20), tables/ (T01–T06),
+│   │                          models/ (.rds, git-ignored), logs/
+│   ├── comparison/         ← T07, T08, comparison_notes.md, F21, F22
 │   └── logs/               ← run_log.txt, sessionInfo.txt
-├── tests/testthat/         ← test-metrics.R, test-data.R, test-leakage.R
+├── tests/testthat/         ← metrics, data, leakage, predict, web (every test runs for v1 and v2)
 ├── renv.lock               ← exact package versions (renv)
 ├── renv/                   ← activate.R + settings (library/ is git-ignored)
 ├── .Rprofile               ← auto-activates renv when R starts here
@@ -473,19 +492,28 @@ Rscript -e "renv::restore(prompt = FALSE)"
 # 1. Get the data: data/raw/sdss_raw.csv is already committed; if it is
 #    missing, 01_acquire.R downloads it (§5)
 
-# 2. Run the full pipeline (steps 1–7)
+# 2. Run the full pipeline (steps 1–7) for v1 and v2, then 09_compare_versions.R
 Rscript run_all.R
 
 # 3. Run the tests
 Rscript -e "testthat::test_dir('tests/testthat')"
 
-# 4. Build the report (HTML + Word)
-Rscript -e "rmarkdown::render('report/report.Rmd', output_format = 'all')"
+# 4. Build both reports (HTML + Word)
+Rscript report/render_reports.R
 ```
 
-You can also run the scripts one at a time, in order, with `Rscript R/01_acquire.R`
-… `Rscript R/07_interpret.R`, or open one in VS Code and send it to the R
-terminal (§4.3).
+You can also run the scripts one at a time. Choose the version with the
+`PHOTOZ_VERSION` environment variable (default `v2`):
+
+| Version | Scripts, in order |
+|---|---|
+| v1 (100 galaxies) | `01_acquire` → `02_inspect_clean` → `03_eda` → `04_split` → `05_train` → `06_evaluate` → `07_interpret` → `08_export_web` |
+| v2 (120 galaxies) | `01_acquire` → `02b_extend_v2` → `03_eda` → … → `08_export_web` (needs v1 first: it reuses v1's galaxies and test set) |
+| both | `09_compare_versions` |
+
+```powershell
+$env:PHOTOZ_VERSION = "v1"; Rscript R/05_train.R
+```
 
 | Script | Approx. runtime |
 |---|---|
@@ -506,8 +534,13 @@ Rscript -e "shiny::runApp('app', launch.browser = TRUE)"
 ```
 
 Run it from the `sdss-photoz-r/` folder. The trained models
-(`outputs/models/*.rds`) are git-ignored, so on a fresh clone run
-`Rscript R/05_train.R` first (about 40 s).
+(`outputs/<version>/models/*.rds`) are git-ignored, so on a fresh clone run
+`Rscript run_all.R` first.
+
+**Model set:** a selector at the top of the sidebar chooses **v1 · 100
+galaxies (80 train)** or **v2 · 120 galaxies (100 train)**. Both are loaded at
+start-up, so switching re-predicts instantly; the training-range check and the
+context plot follow the chosen version.
 
 What the app does:
 
@@ -532,8 +565,8 @@ script:
 
 ```r
 source("R/00_setup.R"); source("R/utils_predict.R")
-models <- load_models()
-ranges <- training_ranges(readr::read_csv(PATHS$train, col_types = RAW_COL_TYPES))
+models <- load_models(version = "v2")   # or "v1"
+ranges <- training_ranges(readr::read_csv(version_paths("v2")$train, col_types = RAW_COL_TYPES))
 predict_redshift(data.frame(u = 19.5, g = 17.96, r = 17.18, i = 16.73, zmag = 16.36),
                  models, ranges)
 ```
@@ -541,18 +574,35 @@ predict_redshift(data.frame(u = 19.5, g = 17.96, r = 17.18, i = 16.73, zmag = 16
 ### 11.2 Public web demo: deploy for free by drag and drop
 
 `site/` is a **static website**: HTML, CSS and JavaScript only, no server and
-no R needed to view it. It shows the same four trained models (D-017):
+no R needed to view it. It shows the same four trained models (D-017), in
+both versions (D-018):
 
 | File | What it is |
 |---|---|
-| `site/index.html`, `styles.css`, `app.js` | The page and its interactions |
+| `site/index.html`, `styles.css`, `app.js` | The page, the version chooser and the interactions |
 | `site/predict.js` | The prediction maths for each model, plus the cosmology |
-| `site/model.js` | The trained models' parameters, **generated by `R/08_export_web.R`** |
+| `site/models/v1.js`, `v2.js` | Each version's trained parameters, **generated by `R/08_export_web.R`** |
+| `site/models/manifest.js` | Version summaries for the chooser, **generated by `R/09_compare_versions.R`** |
+
+**Which model?** On the first visit a dialog asks *"Which model do you want to
+look at?"*: **v1, 100 galaxies** or **v2, 120 galaxies**, with each one's test
+error. The choice is remembered, and the **Model set** switch at the top
+changes it at any time. Each version's file is only downloaded when it is
+chosen. A link can force a version: `…/?model=v1` or `…/?model=v2`. In v2 the
+20 new training galaxies are drawn as violet rings in the scatter plot.
 
 **Accuracy guarantee:** `tests/testthat/test-web.R` runs `predict.js` inside
-R's V8 JavaScript engine and checks that its predictions equal R's for all 20
-test galaxies (to 1e-9), that the out-of-range flags match, and that the
+R's V8 JavaScript engine and checks, for **both** versions, that its
+predictions equal R's for all 20 test galaxies (to 1e-9), that the
+out-of-range flags match, that the manifest numbers equal T05, and that the
 distances match R's numerical integration.
+
+**Try it locally** (the model files are loaded on demand, so use a local
+server rather than double-clicking the file):
+
+```powershell
+Rscript -e "httpuv::runStaticServer('site', port = 8766)"
+```
 
 **Deploy (free, about 2 minutes):**
 
@@ -565,9 +615,10 @@ distances match R's numerical integration.
    go to *Project configuration → Change project name* (e.g.
    `galaxy-redshift-lab.netlify.app`). If your team has *private by default*
    on, make the project public.
-4. **Update later:** after retraining, run `Rscript R/08_export_web.R` (or
-   `Rscript run_all.R`), then drag `site/` onto the drop zone on your
-   project's **Deploys** page.
+4. **Update later:** after retraining, run `Rscript run_all.R` (it re-exports
+   `site/models/`), then drag `site/` onto the drop zone on your project's
+   **Deploys** page. Redeploying the whole `site/` folder is what adds the
+   120-galaxy version and the chooser to an existing deployment.
 
 The free plan gives 300 credits a month. Each deploy uses 15 and each GB of
 traffic uses 20, which is plenty for a student demo.
@@ -576,51 +627,100 @@ traffic uses 20, which is plenty for a student demo.
 
 ## 12. Results
 
-> ⚠️ **Fill this section only from `outputs/tables/T05_test_metrics.csv`
-> after running the pipeline. Never type numbers from memory or estimate
-> them.** (AGENTS.md rule R7)
+> ⚠️ **Fill this section only from `outputs/<version>/tables/` and
+> `outputs/comparison/tables/` after running the pipeline. Never type numbers
+> from memory or estimate them.** (AGENTS.md rule R7)
 
-Numbers below were printed by R from `T04`, `T05` and `T06` and pasted in
-unchanged (2026-10-18 run). Re-run the pipeline and refresh this section if
-the data or models change.
+The numbers below were printed by R from T04, T05, T06 and T07 and pasted in
+unchanged (2026-11-26 run). The v1 numbers are byte-identical to the original
+2026-10-18 run. Re-run the pipeline and refresh this section if the data or
+models change.
 
-**Test-set performance (n = 20), from `T05_test_metrics.csv`:**
+### 12.1 v2: 120 galaxies (100 train / 20 test), the latest
 
-| Model | RMSE [95% CI] | MAE | R² [95% CI] | Bias | σ_NMAD [95% CI] | η |
-|---|---|---|---|---|---|---|
-| M0 Baseline | 0.0457 [0.0330, 0.0576] | 0.0365 | -0.000 [-0.321, -0.000] | +0.0022 | 0.0327 [0.0179, 0.0652] | 0% |
-| M1 Linear | 0.0410 [0.0231, 0.0580] | 0.0303 | 0.193 [-1.582, 0.738] | -0.0029 | 0.0320 [0.0116, 0.0475] | 0% |
-| M2 k-NN | 0.0428 [0.0299, 0.0545] | 0.0333 | 0.123 [-0.401, 0.423] | +0.0028 | 0.0308 [0.0134, 0.0604] | 0% |
-| M3 Random Forest | 0.0331 [0.0222, 0.0428] | 0.0256 | 0.474 [0.022, 0.721] | +0.0030 | 0.0285 [0.0123, 0.0435] | 0% |
-| M4 SVR | 0.0391 [0.0232, 0.0547] | 0.0295 | 0.266 [-1.340, 0.749] | -0.0019 | 0.0282 [0.0116, 0.0472] | 0% |
+From `outputs/v2/tables/T05_test_metrics.csv` and `T04_cv_metrics.csv`:
 
-**Cross-validation RMSE (mean ± SD, 25 resamples), from `T04_cv_metrics.csv`:**
+| Model | Test RMSE [95% CI] | MAE | R² [95% CI] | Bias | σ_NMAD [95% CI] | η | CV RMSE (mean ± SD) |
+|---|---|---|---|---|---|---|---|
+| M0 Baseline | 0.0457 [0.0330, 0.0576] | 0.0364 | -0.000 [-0.320, -0.000] | +0.0021 | 0.0327 [0.0179, 0.0652] | 0% | 0.0440 ± 0.0048 |
+| M1 Linear | 0.0418 [0.0239, 0.0596] | 0.0306 | 0.164 [-1.782, 0.740] | -0.0061 | 0.0253 [0.0099, 0.0515] | 0% | 0.0238 ± 0.0042 |
+| M2 k-NN | 0.0376 [0.0262, 0.0476] | 0.0301 | 0.324 [-0.103, 0.574] | +0.0009 | 0.0319 [0.0119, 0.0516] | 0% | 0.0324 ± 0.0045 |
+| M3 Random Forest | 0.0318 [0.0218, 0.0407] | 0.0256 | 0.516 [0.113, 0.742] | +0.0010 | 0.0276 [0.0102, 0.0421] | 0% | 0.0302 ± 0.0047 |
+| M4 SVR | 0.0444 [0.0250, 0.0647] | 0.0326 | 0.057 [-2.279, 0.728] | -0.0082 | 0.0284 [0.0094, 0.0533] | 0% | 0.0217 ± 0.0045 |
 
-| Model | CV RMSE |
-|---|---|
-| M0 Baseline | 0.0419 ± 0.0051 |
-| M1 Linear | 0.0226 ± 0.0039 |
-| M2 k-NN | 0.0324 ± 0.0026 |
-| M3 Random Forest | 0.0305 ± 0.0053 |
-| M4 SVR | 0.0208 ± 0.0038 |
+**Best model:** M3 Random Forest on the test set (RMSE 0.0318), and again the
+only learner whose 95% CI lies entirely below the baseline. M4 SVR is best in
+cross-validation (0.0217). Negative (unphysical) test predictions: 2 (M1
+Linear, M4 SVR), for the test galaxy with out-of-range colours.
 
-**Best model:** M3 Random Forest on the test set (RMSE 0.0331), and the only
+**Most important feature:** g − r (RF %IncMSE 52.0, up from 44.3 in v1; rank 1
+in both RF and LM; from T06).
+
+**Hypotheses** (`outputs/v2/tables/interpretation_notes.md`): H1 supported ·
+H2 supported (Spearman ρ = 0.98) · H3 partly supported (SVR beats LM in CV;
+k-NN and RF beat LM on the test set) · H4 supported on point estimates (the
+test CIs of 3 of 4 learners overlap the baseline).
+
+### 12.2 v1: 100 galaxies (80 train / 20 test), the original
+
+From `outputs/v1/tables/T05_test_metrics.csv` and `T04_cv_metrics.csv`:
+
+| Model | Test RMSE [95% CI] | MAE | R² [95% CI] | Bias | σ_NMAD [95% CI] | η | CV RMSE (mean ± SD) |
+|---|---|---|---|---|---|---|---|
+| M0 Baseline | 0.0457 [0.0330, 0.0576] | 0.0365 | -0.000 [-0.321, -0.000] | +0.0022 | 0.0327 [0.0179, 0.0652] | 0% | 0.0419 ± 0.0051 |
+| M1 Linear | 0.0410 [0.0231, 0.0580] | 0.0303 | 0.193 [-1.582, 0.738] | -0.0029 | 0.0320 [0.0116, 0.0475] | 0% | 0.0226 ± 0.0039 |
+| M2 k-NN | 0.0428 [0.0299, 0.0545] | 0.0333 | 0.123 [-0.401, 0.423] | +0.0028 | 0.0308 [0.0134, 0.0604] | 0% | 0.0324 ± 0.0026 |
+| M3 Random Forest | 0.0331 [0.0222, 0.0428] | 0.0256 | 0.474 [0.022, 0.721] | +0.0030 | 0.0285 [0.0123, 0.0435] | 0% | 0.0305 ± 0.0053 |
+| M4 SVR | 0.0391 [0.0232, 0.0547] | 0.0295 | 0.266 [-1.340, 0.749] | -0.0019 | 0.0282 [0.0116, 0.0472] | 0% | 0.0208 ± 0.0038 |
+
+**Best model:** M3 Random Forest on the test set (RMSE 0.0331), the only
 learner whose 95% CI lies entirely below the baseline. M4 SVR is best in
 cross-validation (0.0208). The rankings differ because the linear model and
 SVR extrapolate to negative redshifts for a test galaxy with out-of-range
-colours (`docs/AI_USAGE.md` AI-009).
+colours (`docs/AI_USAGE.md` AI-009). **Most important feature:** g − r (RF
+%IncMSE 44.3). **Hypotheses:** H1 supported · H2 supported (ρ = 0.98) · H3
+partly supported (SVR beats LM in CV; RF and SVR beat LM on the test set) · H4
+supported on point estimates.
 
-**Most important feature:** g − r (RF %IncMSE 44.3, rank 1 in both RF and LM;
-from T06).
+### 12.3 Did 20 more training galaxies help? (v1 → v2, paired)
 
-**Hypotheses** (verdicts from `outputs/tables/interpretation_notes.md`):
-H1 supported · H2 supported (Spearman ρ = 0.98) · H3 partly supported
-(SVR beats LM in CV; RF and SVR beat LM on the test set; k-NN never does) ·
-H4 supported on point estimates (the test CIs of 3 of 4 learners overlap the
-baseline).
+From `outputs/comparison/tables/T07_version_comparison.csv`. Both versions are
+scored on the **same 20 test galaxies**, so the change is estimated with a
+paired bootstrap (2000 resamples). That is much tighter than comparing the two
+separate CIs above.
 
-**Key figures:** `F14_pred_vs_true.png` (main result), `F04_colour_vs_redshift.png`
-(physics), `F12_learning_curves.png` (training).
+| Model | RMSE v1 (80 train) | RMSE v2 (100 train) | Δ RMSE [paired 95% CI] | Change | P(v2 better) | Verdict |
+|---|---|---|---|---|---|---|
+| M1 Linear | 0.0410 | 0.0418 | +0.0007 [-0.0021, +0.0029] | +1.8% | 0.28 | no clear change |
+| M2 k-NN | 0.0428 | 0.0376 | -0.0052 [-0.0081, -0.0015] | -12.2% | 1.00 | **clear improvement** |
+| M3 Random Forest | 0.0331 | 0.0318 | -0.0013 [-0.0049, +0.0027] | -4.0% | 0.76 | no clear change |
+| M4 SVR | 0.0391 | 0.0444 | +0.0052 [-0.0018, +0.0107] | +13.4% | 0.09 | no clear change |
+
+**Reading the result** (`outputs/comparison/tables/comparison_notes.md`):
+
+- **k-NN improves clearly (−12%).** It is a local-averaging model, so its
+  error is dominated by how sparsely the colour–redshift relation is sampled
+  (variance). With 25% more galaxies, cross-validation re-tuned k from 8 to 11
+  (T08): denser data lets it average more neighbours without blurring the
+  relation.
+- **Random forest improves slightly (−4%)**, but the paired CI includes zero.
+  It stays the best and recommended model in both versions.
+- **Linear regression does not change.** It has 6 parameters and is limited by
+  bias (a straight line through a curved relation), so more data cannot help.
+- **SVR is not clearly different.** Its tuned kernel (σ = 0.01) is very wide,
+  so it is nearly linear and behaves like the linear model. The +13% is within
+  the paired uncertainty.
+- **The new galaxies are representative.** KS tests against the v1 training
+  set give redshift p = 0.68 and g − r p = 0.10. Two of them extend the
+  training range, so only 2 test galaxies (v1: 4) now need extrapolation.
+- **Learning curves (F22) are flat from 80 to 100.** More galaxies of the same
+  kind would give only small further gains. The remaining error is set mostly
+  by how much redshift information five broad bands carry.
+
+**Key figures:** `outputs/v2/figures/F14_pred_vs_true.png` (main result),
+`outputs/comparison/figures/F21_version_comparison.png` (v1 vs v2),
+`outputs/v2/figures/F04_colour_vs_redshift.png` (physics),
+`outputs/comparison/figures/F22_learning_curves_v1_v2.png` (training size).
 
 ---
 
@@ -636,19 +736,24 @@ The full specification is in [`docs/REPORT_GUIDE.md`](docs/REPORT_GUIDE.md).
 | Evaluation | F14–F17 | **Predicted vs true z**, residuals vs z, residual distributions, model comparison with CIs |
 | Interpretation | F18–F19 | Feature importance (RF + LM), partial dependence on g−r and r−i |
 | Tables | T01–T06 | Data summary, cleaning log, hyperparameters, CV metrics, **test metrics**, feature importance |
+| **v1 vs v2** | F21–F22, T07–T08 | Paired test-RMSE change with CIs, learning curves of both versions, hyperparameter drift |
 
-Every figure is saved as **PNG (300 dpi)** for Word and **PDF (vector)** for
-LaTeX. Draft captions are in `outputs/figures/captions.md`.
+F01–F20 and T01–T06 exist once per version in `outputs/v1/` and `outputs/v2/`;
+F21–F22 and T07–T08 are in `outputs/comparison/`. Every figure is saved as
+**PNG (300 dpi)** for Word and **PDF (vector)** for LaTeX. Draft captions are
+in each `figures/captions.md`.
 
 ---
 
 ## 14. Limitations
 
-- **Small sample (n = 100)** is set by the brief. Real photo-z work uses
-  10⁵–10⁶ galaxies, so expect larger errors than published SDSS photo-z
-  (σ_NMAD ≈ 0.02–0.03).
+- **Small sample (n = 100 in v1, 120 in v2).** v1 is set by the brief; v2
+  goes 20 beyond the brief's limit by the owner's decision (D-018). Real
+  photo-z work uses 10⁵–10⁶ galaxies, so expect larger errors than published
+  SDSS photo-z (σ_NMAD ≈ 0.02–0.03).
 - **20-galaxy test set:** metrics have wide confidence intervals, so read
-  the CIs, not just the point estimates.
+  the CIs, not just the point estimates. v2 deliberately keeps the same 20 so
+  the v1 → v2 comparison is paired (§12.3).
 - **Redshift range 0.01–0.5** and r ≤ 17.77: the models must not be used
   outside this range.
 - **Mixed galaxy types:** red ellipticals have a strong 4000 Å break; blue

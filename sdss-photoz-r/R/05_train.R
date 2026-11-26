@@ -8,6 +8,8 @@
 #          outputs/tables/learning_curves.csv,
 #          outputs/figures/F08–F13 (.png + .pdf), captions.md
 # Brief  : TASK.md §4, step 5; decisions D-008, D-010, D-014, D-016
+# Paths  : relative to the active dataset version (PHOTOZ_VERSION, D-018):
+#          data/processed/<version>/ and outputs/<version>/
 # =============================================================================
 
 source(here::here("R", "00_setup.R"))
@@ -159,7 +161,7 @@ f09 <- ggplot(oob, aes(trees, mse)) +
 save_fig(f09, "F09", "rf_oob_vs_trees", 6.5, 4.5)
 add_caption("F09", glue(
   "Out-of-bag mean squared error of the final random forest (mtry = ",
-  "{best$M3_rf$mtry}, 80 training galaxies) as trees are added. The curve is ",
+  "{best$M3_rf$mtry}, {nrow(train)} training galaxies) as trees are added. The curve is ",
   "flat well before 500 trees, so 500 is enough."
 ))
 
@@ -213,7 +215,7 @@ add_caption("F11", glue(
 # the training set; the test set is only used to score these refits and
 # influences no modelling choice.
 test <- read_csv(PATHS$test, col_types = RAW_COL_TYPES, progress = FALSE)
-LC_SIZES <- seq(20, 80, by = 10)
+LC_SIZES <- seq(20, nrow(train), by = 10) # 20…80 in v1, 20…100 in v2
 LC_REPEATS <- 20
 no_resampling <- trainControl(method = "none")
 
